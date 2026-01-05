@@ -8,6 +8,7 @@ import { parseAbi } from "viem";
 import { createIdentity, getCommitment, buildProof, createGroupFromCommitments } from "@/lib/zk";
 import { sendSmartWalletContractTx } from "@/lib/privy";
 import { contracts } from "@/lib/ethers";
+import { ethers } from "ethers";
 
 type Candidate = {
   id: string;
@@ -196,21 +197,53 @@ export default function ElectionDetailPage() {
 
     try {
       setVoting(true);
-      setProofStatus("Loading group commitments...");
+      setProofStatus("Loading on-chain group members...");
 
-      // Get all accepted commitments for this election
-      const res = await fetch(`/api/invitations?electionId=${election.id}&status=accepted`);
-      const body = await res.json();
-      if (!res.ok) throw new Error(body.error || "Failed to load commitments");
-
-      const commitments = (body.invitations || [])
-        .map((inv: any) => inv.commitment_hash)
-        .filter(Boolean)
-        .map((c: string) => BigInt(c));
-
+      // Read commitments directly from on-chain events to ensure correct order
+      const provider = new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_RPC_URL);
+      const groupId = BigInt(election.onchain_group_id);
+      
+      // Get MemberAdded events from Semaphore contract for this group
+      const semaphoreInterface = new ethers.Interface([
+        "event MemberAdded(uint256 indexed groupId, uint256 index, uint256 identityCommitment, uint256 merkleTreeRoot)"
+      ]);
+      
+      // Query events (last 10000 blocks should be enough for recent elections)
+      const currentBlock = await provider.getBlockNumber();
+      const fromBlock = Math.max(0, currentBlock - 10000);
+      
+      const logs = await provider.getLogs({
+        address: contracts.semaphore,
+        topics: [
+          ethers.id("MemberAdded(uint256,uint256,uint256,uint256)"),
+          ethers.toBeHex(groupId, 32), // groupId is indexed
+        ],
+        fromBlock,
+        toBlock: "latest",
+      });
+      
+      console.log(`📊 Found ${logs.length} MemberAdded events for group ${groupId.toString()}`);
+      
+      // Parse events and extract commitments in order
+      const commitments: bigint[] = logs
+        .map((log) => {
+          const parsed = semaphoreInterface.parseLog({
+            topics: log.topics as string[],
+            data: log.data,
+          });
+          return {
+            index: Number(parsed?.args[1]),
+            commitment: BigInt(parsed?.args[2]),
+          };
+        })
+        .sort((a, b) => a.index - b.index) // Sort by index to ensure correct order
+        .map((item) => item.commitment);
+      
       if (!commitments.length) {
-        throw new Error("No registered commitments found for this election");
+        throw new Error("No members found on-chain for this election group. Please accept the invitation first.");
       }
+      
+      console.log("📊 On-chain commitments:", commitments.map(c => c.toString().substring(0, 20) + "..."));
 
       const depth = 20;
       const group = createGroupFromCommitments(commitments, depth);
@@ -228,9 +261,9 @@ export default function ElectionDetailPage() {
       
       if (!isInGroup) {
         throw new Error(
-          `Your identity is not registered in this election. ` +
-          `Make sure you accepted the invitation with this account. ` +
-          `Try refreshing the page or re-accepting the invitation.`
+          `Your identity commitment is not registered on-chain for this election. ` +
+          `This can happen if the accept invitation transaction failed or is still pending. ` +
+          `Please go back to the voter dashboard and try accepting the invitation again.`
         );
       }
       

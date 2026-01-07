@@ -77,7 +77,7 @@ export default function ElectionDetailPage() {
     // Load identity from localStorage - unique per Privy user
     const seedKey = `voter_seed_${user.id}`;
     let savedSeed = localStorage.getItem(seedKey);
-    
+
     // Migration: if old global seed exists and user doesn't have one, migrate it
     // BUT only for the first user - then delete the old seed so other users get their own
     const oldSeed = localStorage.getItem("voter_seed");
@@ -87,7 +87,7 @@ export default function ElectionDetailPage() {
       localStorage.removeItem("voter_seed"); // Remove old seed so next user gets their own
       console.log("Migrated voter seed to user-specific key and removed old global seed");
     }
-    
+
     // If no seed exists for this user, generate and save one
     if (!savedSeed) {
       savedSeed = Math.random().toString(36).substring(2);
@@ -137,10 +137,10 @@ export default function ElectionDetailPage() {
 
   function isElectionActive(election: Election): boolean {
     const now = new Date();
-    
+
     // If status is explicitly "ended", it's not active
     if (election.status === "ended") return false;
-    
+
     // Check if election has ended (compare with time)
     if (election.ends_at) {
       const endDate = new Date(election.ends_at);
@@ -149,7 +149,7 @@ export default function ElectionDetailPage() {
         return false;
       }
     }
-    
+
     // Check if election hasn't started yet (compare with time)
     if (election.starts_at) {
       const startDate = new Date(election.starts_at);
@@ -158,7 +158,7 @@ export default function ElectionDetailPage() {
         return false;
       }
     }
-    
+
     // If we get here, the election is active:
     // - It hasn't ended (or has no end date)
     // - It has started (or has no start date)
@@ -202,16 +202,16 @@ export default function ElectionDetailPage() {
       // Read commitments directly from on-chain events to ensure correct order
       const provider = new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_RPC_URL);
       const groupId = BigInt(election.onchain_group_id);
-      
+
       // Get MemberAdded events from Semaphore contract for this group
       const semaphoreInterface = new ethers.Interface([
         "event MemberAdded(uint256 indexed groupId, uint256 index, uint256 identityCommitment, uint256 merkleTreeRoot)"
       ]);
-      
+
       // Query events (last 10000 blocks should be enough for recent elections)
       const currentBlock = await provider.getBlockNumber();
       const fromBlock = Math.max(0, currentBlock - 10000);
-      
+
       const logs = await provider.getLogs({
         address: contracts.semaphore,
         topics: [
@@ -221,9 +221,9 @@ export default function ElectionDetailPage() {
         fromBlock,
         toBlock: "latest",
       });
-      
+
       console.log(`📊 Found ${logs.length} MemberAdded events for group ${groupId.toString()}`);
-      
+
       // Parse events and extract commitments in order
       const commitments: bigint[] = logs
         .map((log) => {
@@ -238,27 +238,27 @@ export default function ElectionDetailPage() {
         })
         .sort((a, b) => a.index - b.index) // Sort by index to ensure correct order
         .map((item) => item.commitment);
-      
+
       if (!commitments.length) {
         throw new Error("No members found on-chain for this election group. Please accept the invitation first.");
       }
-      
+
       console.log("📊 On-chain commitments:", commitments.map(c => c.toString().substring(0, 20) + "..."));
 
       const depth = 20;
       const group = createGroupFromCommitments(commitments, depth);
       const externalNullifier = BigInt(election.external_nullifier);
-      
+
       // Verify our commitment is in the group
       const myCommitment = getCommitment(identity).toString();
       const isInGroup = commitments.some((c: bigint) => c.toString() === myCommitment);
-      
+
       console.log("✓ Commitment verification:", {
         myCommitment: myCommitment.substring(0, 20) + "...",
         groupSize: commitments.length,
         isInGroup,
       });
-      
+
       if (!isInGroup) {
         throw new Error(
           `Your identity commitment is not registered on-chain for this election. ` +
@@ -266,7 +266,7 @@ export default function ElectionDetailPage() {
           `Please go back to the voter dashboard and try accepting the invitation again.`
         );
       }
-      
+
       // Use candidate index (1-based) as signal
       const candidateIndex = candidates.findIndex((c) => c.id === selectedCandidate.id) + 1;
       const signalBig = BigInt(candidateIndex);
@@ -332,10 +332,10 @@ export default function ElectionDetailPage() {
 
       setProofStatus(`✓ Vote submitted successfully! Tx: ${txHash.substring(0, 10)}...`);
       setHasVoted(true);
-      
+
       // Save to localStorage for persistence
       localStorage.setItem(`voted_${election.id}`, "true");
-      
+
       // Save vote to Supabase for tracking
       try {
         // Note: We only log non-identifying information
@@ -370,7 +370,7 @@ export default function ElectionDetailPage() {
       } catch (saveErr) {
         console.error("Failed to save vote to Supabase:", saveErr);
       }
-      
+
       // Redirect after 3 seconds
       setTimeout(() => {
         router.push("/voter");
@@ -383,12 +383,12 @@ export default function ElectionDetailPage() {
         code: err?.code,
         data: err?.data,
       });
-      
+
       // Check if it's a duplicate vote error
       const errorMessage = err?.message?.toLowerCase() || "";
       const errorReason = err?.reason?.toLowerCase() || "";
       const errorData = JSON.stringify(err?.data || "").toLowerCase();
-      
+
       if (
         errorMessage.includes("nullifieralreadyused") ||
         errorMessage.includes("already used") ||
@@ -453,7 +453,7 @@ export default function ElectionDetailPage() {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-4xl flex-col gap-8 py-10">
+    <div className="mx-auto flex w-full max-w-4xl flex-col gap-8 py-10 mt-20">
       <button
         onClick={() => router.push("/voter")}
         className="flex items-center gap-2 text-sm font-medium text-indigo-600 hover:text-indigo-700 transition w-fit"
@@ -476,7 +476,7 @@ export default function ElectionDetailPage() {
             <div className="flex-1">
               <h3 className="text-lg font-semibold text-amber-900">You have already voted in this election</h3>
               <p className="mt-1 text-sm text-amber-800">
-                Each voter can only cast one vote per election. This ensures fairness and prevents manipulation. 
+                Each voter can only cast one vote per election. This ensures fairness and prevents manipulation.
                 Your vote has been recorded anonymously on the blockchain.
               </p>
               <div className="mt-3 flex items-center gap-2 text-xs text-amber-700">
@@ -492,8 +492,8 @@ export default function ElectionDetailPage() {
 
       <header className="space-y-2">
         <p className="text-sm font-semibold uppercase tracking-[0.2em] text-indigo-500">Election</p>
-        <h1 className="text-3xl font-bold text-slate-900">{election.name}</h1>
-        <p className="text-sm text-slate-600">
+        <h1 className="text-3xl font-bold text-slate-600">{election.name}</h1>
+        <p className="text-sm text-slate-400">
           {hasVoted ? "You can view the candidates below" : "Select a candidate to cast your anonymous vote"}
         </p>
       </header>
@@ -510,11 +510,10 @@ export default function ElectionDetailPage() {
                 key={candidate.id}
                 onClick={() => setSelectedCandidate(candidate)}
                 disabled={voting || hasVoted}
-                className={`rounded-2xl border-2 p-6 text-left transition ${
-                  selectedCandidate?.id === candidate.id
-                    ? "border-indigo-500 bg-indigo-50"
-                    : "border-slate-200 bg-white hover:border-indigo-300 hover:shadow-md"
-                } ${voting ? "opacity-60 cursor-not-allowed" : "cursor-pointer"}`}
+                className={`rounded-2xl border-2 p-6 text-left transition ${selectedCandidate?.id === candidate.id
+                  ? "border-indigo-500 bg-indigo-50"
+                  : "border-slate-200 bg-white hover:border-indigo-300 hover:shadow-md"
+                  } ${voting ? "opacity-60 cursor-not-allowed" : "cursor-pointer"}`}
               >
                 {candidate.image_url ? (
                   <img

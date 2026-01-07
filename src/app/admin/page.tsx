@@ -23,32 +23,44 @@ export default function AdminPage() {
   }, []);
 
   return (
-    <div className="mx-auto flex w-full max-w-4xl flex-col gap-8 py-10">
+    <div className="mx-auto flex w-full max-w-4xl flex-col gap-8 py-10 px-6 mt-16">
       <header className="space-y-2">
-        <p className="text-sm font-semibold uppercase tracking-[0.2em] text-indigo-500">Admin</p>
-        <h1 className="text-3xl font-bold text-slate-900">System overview & roles</h1>
-        <p className="text-sm text-slate-600">Stubbed data; connect to Supabase and Privy admin flags.</p>
+        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 mb-2">
+          <span className="text-xs font-mono text-indigo-400">ADMIN CONSOLE</span>
+        </div>
+        <h1 className="text-3xl font-bold text-white">System overview & roles</h1>
+        <p className="text-sm text-slate-400">Stubbed data; connect to Supabase and Privy admin flags.</p>
       </header>
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h3 className="text-lg font-semibold text-slate-900">Users</h3>
-        <p className="text-sm text-slate-600">Awaiting Supabase query hook.</p>
-        <div className="mt-4 rounded-lg border border-dashed border-slate-200 p-4 text-sm text-slate-600">
+      <div className="glass rounded-2xl p-6">
+        <h3 className="text-lg font-semibold text-white">Users</h3>
+        <p className="text-sm text-slate-400">Awaiting Supabase query hook.</p>
+        <div className="mt-4 rounded-lg border border-dashed border-white/20 p-4 text-sm text-slate-400 bg-white/5">
           {loading ? "Loading..." : "Connect Supabase service role to list users and promote organizers."}
         </div>
-      </section>
+      </div>
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h3 className="text-lg font-semibold text-slate-900">System health</h3>
-        <ul className="mt-3 space-y-2 text-sm text-slate-700">
-          <li>• RPC: {process.env.NEXT_PUBLIC_RPC_URL ? "configured" : "missing"}</li>
-          <li>• Voting contract: {process.env.NEXT_PUBLIC_VOTING_CONTRACT ? "configured" : "missing"}</li>
-          <li>
-            • Paymaster: {process.env.NEXT_PUBLIC_PAYMASTER_RPC_URL ? "configured" : "missing"}
+      <div className="glass rounded-2xl p-6">
+        <h3 className="text-lg font-semibold text-white">System health</h3>
+        <ul className="mt-3 space-y-2 text-sm text-slate-300">
+          <li className="flex items-center gap-2">
+            <span className={`h-2 w-2 rounded-full ${process.env.NEXT_PUBLIC_RPC_URL ? "bg-green-500" : "bg-red-500"}`} />
+            RPC: {process.env.NEXT_PUBLIC_RPC_URL ? "configured" : "missing"}
           </li>
-          <li>• Supabase: {process.env.NEXT_PUBLIC_SUPABASE_URL ? "configured" : "missing"}</li>
+          <li className="flex items-center gap-2">
+            <span className={`h-2 w-2 rounded-full ${process.env.NEXT_PUBLIC_VOTING_CONTRACT ? "bg-green-500" : "bg-red-500"}`} />
+            Voting contract: {process.env.NEXT_PUBLIC_VOTING_CONTRACT ? "configured" : "missing"}
+          </li>
+          <li className="flex items-center gap-2">
+            <span className={`h-2 w-2 rounded-full ${process.env.NEXT_PUBLIC_PAYMASTER_RPC_URL ? "bg-green-500" : "bg-red-500"}`} />
+            Paymaster: {process.env.NEXT_PUBLIC_PAYMASTER_RPC_URL ? "configured" : "missing"}
+          </li>
+          <li className="flex items-center gap-2">
+            <span className={`h-2 w-2 rounded-full ${process.env.NEXT_PUBLIC_SUPABASE_URL ? "bg-green-500" : "bg-red-500"}`} />
+            Supabase: {process.env.NEXT_PUBLIC_SUPABASE_URL ? "configured" : "missing"}
+          </li>
         </ul>
-      </section>
+      </div>
     </div>
   );
 }

@@ -39,20 +39,20 @@ export function Modal({ isOpen, onClose, title, children, size = "md" }: ModalPr
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       {/* Backdrop */}
       <div
-        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+        className="absolute inset-0 bg-black/80 backdrop-blur-md animate-in fade-in duration-200"
         onClick={onClose}
       />
 
       {/* Modal */}
       <div
-        className={`relative w-full ${sizeClasses[size]} max-h-[90vh] overflow-y-auto rounded-2xl bg-white shadow-2xl`}
+        className={`relative w-full ${sizeClasses[size]} max-h-[90vh] overflow-y-auto rounded-3xl border border-white/10 bg-[#0a0a0f] shadow-2xl animate-in zoom-in-95 duration-200`}
       >
         {/* Header */}
-        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-6 py-4">
-          <h2 className="text-xl font-semibold text-slate-900">{title}</h2>
+        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-white/10 bg-[#0a0a0f]/80 backdrop-blur-xl px-6 py-4">
+          <h2 className="text-xl font-semibold text-white">{title}</h2>
           <button
             onClick={onClose}
-            className="rounded-lg p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+            className="rounded-lg p-2 text-slate-400 transition hover:bg-white/10 hover:text-white"
           >
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -61,7 +61,7 @@ export function Modal({ isOpen, onClose, title, children, size = "md" }: ModalPr
         </div>
 
         {/* Content */}
-        <div className="p-6">{children}</div>
+        <div className="p-6 text-slate-300">{children}</div>
       </div>
     </div>
   );

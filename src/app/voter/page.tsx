@@ -43,10 +43,10 @@ export default function VoterPage() {
   async function waitForTransaction(txHash: string, description: string = "Transaction") {
     console.log(`⏳ Waiting for ${description} to confirm...`, txHash.substring(0, 20) + "...");
     const provider = new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_RPC_URL);
-    
+
     let attempts = 0;
     const maxAttempts = 40; // 40 * 3s = 2 minutes max
-    
+
     while (attempts < maxAttempts) {
       try {
         const receipt = await provider.getTransactionReceipt(txHash);
@@ -74,12 +74,12 @@ export default function VoterPage() {
         }
         // Transaction not yet mined, continue waiting
       }
-      
+
       // Wait 3 seconds before checking again
       await new Promise(resolve => setTimeout(resolve, 3000));
       attempts++;
     }
-    
+
     throw new Error(`${description} timed out after ${maxAttempts * 3} seconds. Check Sepolia explorer: https://sepolia.etherscan.io/tx/${txHash}`);
   }
 
@@ -98,7 +98,7 @@ export default function VoterPage() {
     // Load identity from localStorage - unique per Privy user
     const seedKey = `voter_seed_${user.id}`;
     let savedSeed = localStorage.getItem(seedKey);
-    
+
     // Migration: if old global seed exists and user doesn't have one, migrate it
     // BUT only for the first user - then delete the old seed so other users get their own
     const oldSeed = localStorage.getItem("voter_seed");
@@ -108,7 +108,7 @@ export default function VoterPage() {
       localStorage.removeItem("voter_seed"); // Remove old seed so next user gets their own
       console.log("Migrated voter seed to user-specific key and removed old global seed");
     }
-    
+
     // If no seed exists for this user, generate and save one
     if (!savedSeed) {
       savedSeed = Math.random().toString(36).substring(2);
@@ -145,10 +145,10 @@ export default function VoterPage() {
     try {
       const email = user.email.address.toLowerCase().trim();
       console.log("Loading invitations for email:", email);
-      
+
       const res = await fetch(`/api/invitations?email=${encodeURIComponent(email)}`);
       const body = await res.json();
-      
+
       if (res.ok) {
         console.log("Loaded invitations:", body.invitations);
         setInvitations(body.invitations || []);
@@ -162,10 +162,10 @@ export default function VoterPage() {
 
   function isElectionActive(election: Invitation["elections"]): boolean {
     const now = new Date();
-    
+
     // If status is explicitly "ended", it's not active
     if (election.status === "ended") return false;
-    
+
     // Check if election has ended (compare with time)
     if (election.ends_at) {
       const endDate = new Date(election.ends_at);
@@ -174,7 +174,7 @@ export default function VoterPage() {
         return false;
       }
     }
-    
+
     // Check if election hasn't started yet (compare with time)
     if (election.starts_at) {
       const startDate = new Date(election.starts_at);
@@ -183,7 +183,7 @@ export default function VoterPage() {
         return false;
       }
     }
-    
+
     // If we get here, the election is active:
     // - It hasn't ended (or has no end date)
     // - It has started (or has no start date)
@@ -251,7 +251,7 @@ export default function VoterPage() {
         ],
       });
       console.log("✓ addCommitment tx sent:", txHash);
-      
+
       // Wait for confirmation
       setToast("Waiting for blockchain confirmation...");
       await waitForTransaction(txHash, "addCommitment");
@@ -259,7 +259,7 @@ export default function VoterPage() {
 
       // Reload invitations to show the accepted one in the list
       await loadInvitations();
-      
+
       // Show success message - user can now click to vote
       setToast(`Invitation accepted! You can now vote in "${(invitation.elections as any).name}"`);
       setTimeout(() => setToast(null), 5000);
@@ -276,51 +276,53 @@ export default function VoterPage() {
   );
 
   return (
-    <div className="mx-auto flex w-full max-w-4xl flex-col gap-8 py-10">
+    <div className="mx-auto flex w-full max-w-4xl flex-col gap-8 py-10 px-6 mt-16">
       <header className="space-y-2">
-        <p className="text-sm font-semibold uppercase tracking-[0.2em] text-indigo-500">Voter</p>
-        <h1 className="text-3xl font-bold text-slate-900">Your Elections</h1>
-        <p className="text-sm text-slate-600">
+        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 mb-2">
+          <span className="text-xs font-mono text-indigo-400">VOTER DASHBOARD</span>
+        </div>
+        <h1 className="text-3xl font-bold text-white">Your Elections</h1>
+        <p className="text-sm text-slate-400">
           View invitations and cast your anonymous zk vote.
         </p>
         {user?.email?.address && (
-          <p className="text-xs text-slate-600">
-            Logged in as: {user.email.address.toLowerCase()}
+          <p className="text-xs text-slate-500">
+            Logged in as: <span className="text-slate-300">{user.email.address.toLowerCase()}</span>
           </p>
         )}
       </header>
 
       {/* Generate Identity */}
-      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h3 className="text-lg font-semibold text-slate-900">Your Identity</h3>
-        <div className="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-800">
-          Commitment: <span className="font-mono">{commitment ?? "generating..."}</span>
+      <div className="glass rounded-2xl p-6">
+        <h3 className="text-lg font-semibold text-white">Your Identity</h3>
+        <div className="mt-3 rounded-lg bg-black/30 border border-white/5 px-3 py-2 text-sm text-indigo-300 break-all">
+          Commitment: <span className="font-mono text-xs md:text-sm">{commitment ?? "generating..."}</span>
         </div>
         <p className="mt-2 text-xs text-slate-500">
           This identity is generated locally and stored in your browser. It's used to cast anonymous votes.
         </p>
-      </section>
+      </div>
 
       {/* Pending Invitations */}
       {pendingInvitations.length > 0 && (
-        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h3 className="text-lg font-semibold text-slate-900 mb-4">Pending Invitations</h3>
+        <div className="glass rounded-2xl p-6">
+          <h3 className="text-lg font-semibold text-white mb-4">Pending Invitations</h3>
           <div className="space-y-3">
             {pendingInvitations.map((inv) => (
               <div
                 key={inv.id}
-                className="flex items-center justify-between rounded-lg border border-slate-200 p-4"
+                className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-xl border border-white/10 bg-white/5 p-4"
               >
                 <div>
-                  <p className="font-medium text-slate-900">{inv.elections.name}</p>
-                  <p className="text-sm text-slate-600">
+                  <p className="font-medium text-white">{inv.elections.name}</p>
+                  <p className="text-sm text-slate-400">
                     {inv.elections.ends_at
                       ? `Ends: ${new Date(inv.elections.ends_at).toLocaleDateString()}`
                       : "No end date"}
                   </p>
                 </div>
                 <button
-                  className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-500 disabled:opacity-60"
+                  className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-500 disabled:opacity-60 disabled:cursor-not-allowed shadow-lg shadow-indigo-500/20"
                   onClick={() => acceptInvitation(inv)}
                   disabled={!commitment || accepting === inv.id}
                 >
@@ -329,67 +331,72 @@ export default function VoterPage() {
               </div>
             ))}
           </div>
-        </section>
+        </div>
       )}
 
       {/* Accepted Elections - Can Vote */}
       {acceptedInvitations.length > 0 && (
-        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h3 className="text-lg font-semibold text-slate-900 mb-4">Active Elections</h3>
+        <div className="glass rounded-2xl p-6">
+          <h3 className="text-lg font-semibold text-white mb-4">Active Elections</h3>
           <div className="space-y-4">
             {acceptedInvitations.map((inv) => (
               <div
                 key={inv.id}
                 onClick={() => router.push(`/voter/election/${inv.election_id}`)}
-                className="rounded-lg border border-slate-200 p-4 cursor-pointer transition hover:border-indigo-300 hover:shadow-md"
+                className="rounded-xl border border-white/10 bg-white/5 p-4 cursor-pointer transition hover:bg-white/10 hover:border-indigo-500/50 group"
               >
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
-                    <p className="font-medium text-slate-900">{inv.elections.name}</p>
-                    <p className="text-sm text-slate-600 mt-1">
+                    <p className="font-medium text-white group-hover:text-indigo-300 transition-colors">{inv.elections.name}</p>
+                    <p className="text-sm text-slate-400 mt-1">
                       {inv.elections.ends_at
                         ? `Ends: ${new Date(inv.elections.ends_at).toLocaleString()}`
                         : "No end date"}
                     </p>
                   </div>
-                  <span className="ml-4 rounded-full bg-green-100 px-3 py-1 text-xs font-medium text-green-800">
+                  <span className="ml-4 rounded-full bg-green-500/10 border border-green-500/20 px-3 py-1 text-xs font-medium text-green-400 shadow-[0_0_10px_rgba(34,197,94,0.1)]">
                     Active
                   </span>
                 </div>
-                <p className="text-xs text-slate-500 mt-2">Click to view candidates and vote</p>
+                <p className="text-xs text-slate-500 mt-3 flex items-center gap-1 group-hover:text-indigo-400 transition-colors">
+                  Click to view candidates and vote
+                </p>
               </div>
             ))}
           </div>
-        </section>
+        </div>
       )}
 
       {invitations.length === 0 && authenticated && user?.email?.address && (
-        <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center">
-          <p className="text-slate-600">No invitations found for {user.email.address.toLowerCase()}.</p>
-          <p className="text-xs text-slate-600 mt-2">
+        <div className="glass rounded-2xl p-12 text-center border-dashed border-white/20">
+          <p className="text-slate-400">No invitations found for <span className="text-white">{user.email.address.toLowerCase()}</span>.</p>
+          <p className="text-xs text-slate-500 mt-2">
             Make sure the organizer invited this exact email address.
           </p>
         </div>
       )}
 
       {acceptedInvitations.length === 0 && pendingInvitations.length === 0 && invitations.length > 0 && (
-        <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center">
-          <p className="text-slate-700">No active elections available.</p>
-          <p className="text-xs text-slate-600 mt-2">
+        <div className="glass rounded-2xl p-12 text-center border-dashed border-white/20">
+          <p className="text-slate-400">No active elections available.</p>
+          <p className="text-xs text-slate-500 mt-2">
             All your elections have ended or are not yet active.
           </p>
         </div>
       )}
 
       {toast && (
-        <div className="fixed bottom-6 right-6 rounded-lg bg-indigo-600 px-4 py-3 text-sm font-semibold text-white shadow-lg z-50">
-          {toast}
-          <button
-            onClick={() => setToast(null)}
-            className="ml-3 text-white hover:text-indigo-200"
-          >
-            ×
-          </button>
+        <div className="fixed bottom-6 right-6 rounded-xl bg-slate-900/90 border border-indigo-500/50 px-4 py-3 text-sm font-semibold text-white shadow-xl shadow-indigo-500/10 backdrop-blur-md z-50 animate-in slide-in-from-bottom-5 fade-in duration-300">
+          <div className="flex items-center gap-3">
+            <div className="h-2 w-2 rounded-full bg-indigo-500 animate-pulse" />
+            {toast}
+            <button
+              onClick={() => setToast(null)}
+              className="ml-3 text-slate-400 hover:text-white"
+            >
+              ×
+            </button>
+          </div>
         </div>
       )}
     </div>

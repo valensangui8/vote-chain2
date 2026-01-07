@@ -7,7 +7,7 @@ const voteSchema = z.object({
   nullifierHash: z.string(),
   signal: z.string(),
   txHash: z.string().optional(), // Blockchain transaction hash
-  voterPrivyUserId: z.string().optional(), // Optional: Privy user ID for tracking
+  // NOTE: voterPrivyUserId intentionally NOT accepted to preserve voter anonymity
 });
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -24,9 +24,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   const supabase = getSupabaseServerClient();
-  const { electionId, nullifierHash, signal, txHash, voterPrivyUserId } = parsed.data;
+  const { electionId, nullifierHash, signal, txHash } = parsed.data;
 
-  console.log("📝 Saving vote to Supabase:", {
+  console.log("📝 Saving vote to Supabase (anonymous):", {
     electionId,
     nullifierHash: nullifierHash.substring(0, 20) + "...",
     signal,
@@ -34,9 +34,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   });
 
   // Save vote record to Supabase (vote already submitted to blockchain from frontend)
+  // NOTE: We do NOT store voter identity to preserve anonymity
   const { error: insertError } = await supabase.from("votes").insert({
     election_id: electionId,
-    voter_privy_user_id: voterPrivyUserId || null,
+    // voter_privy_user_id intentionally NOT stored for anonymity
     nullifier_hash: nullifierHash,
     signal,
     tx_hash: txHash || null,

@@ -209,11 +209,12 @@ export default function VoterPage() {
       setAccepting(invitation.id);
 
       // 1) Accept invitation in Supabase
+      // NOTE: We do NOT send commitmentHash to Supabase to preserve voter anonymity.
+      // The commitment is only registered on-chain where it cannot be linked to identity.
       const res = await fetch(`/api/invitations/${invitation.id}/accept`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          commitmentHash: commitment,
           privyUserId: user?.id,
         }),
       });

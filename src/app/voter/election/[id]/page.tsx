@@ -338,14 +338,17 @@ export default function ElectionDetailPage() {
       
       // Save vote to Supabase for tracking
       try {
+        // Note: We only log non-identifying information
         console.log("💾 Saving vote to Supabase:", {
           electionId: election.id,
           nullifier: semaphoreProof.nullifier.toString().substring(0, 20) + "...",
           message: semaphoreProof.message.toString(),
           txHash: txHash.substring(0, 20) + "...",
-          privyUserId: user?.id,
+          // privyUserId intentionally not logged to preserve anonymity
         });
 
+        // IMPORTANT: Do NOT send voterPrivyUserId to preserve voter anonymity
+        // The nullifier is sufficient to prevent double voting
         const saveRes = await fetch("/api/votes", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -354,7 +357,7 @@ export default function ElectionDetailPage() {
             nullifierHash: semaphoreProof.nullifier.toString(),
             signal: semaphoreProof.message.toString(),
             txHash,
-            voterPrivyUserId: user?.id,
+            // voterPrivyUserId intentionally omitted to preserve anonymity
           }),
         });
 

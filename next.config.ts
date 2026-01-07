@@ -1,6 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Use empty turbopack config to silence the warning about webpack config
+  turbopack: {},
   webpack: (config, { isServer }) => {
     // Fix for modules that shouldn't be bundled (test files from dependencies)
     config.resolve.fallback = {

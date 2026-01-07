@@ -577,18 +577,14 @@ export default function OrganizerPage() {
             });
 
             if (!candRes.ok) {
-              const errorBody = await candRes.json().catch(() => ({ error: "Unknown error" }));
-              console.error(`Failed to sync candidate ${candidate.name}:`, errorBody);
-              throw new Error(`Failed to sync candidate ${candidate.name}: ${errorBody.error || "Unknown error"}`);
+              console.warn(`⚠️ Failed to sync candidate ${candidate.name} to database (but it's on-chain)`);
+            } else {
+              const candData = await candRes.json();
+              console.log("✓ Candidate saved to Supabase:", candData);
             }
-
-            const candData = await candRes.json();
-            console.log("Candidate saved to Supabase:", candData);
-
-            console.log(`Candidate ${candidate.name} added to Supabase successfully`);
           } catch (err: any) {
-            console.error(`Error adding candidate ${candidate.name}:`, err);
-            setToast(`Warning: Failed to add candidate "${candidate.name}". Check console for details.`);
+            console.error(`❌ Error adding candidate ${candidate.name}:`, err);
+            setToast(`Failed to add "${candidate.name}". You can add it manually later.`);
             // Continue with next candidate instead of failing completely
           }
         }
@@ -1404,7 +1400,6 @@ export default function OrganizerPage() {
                       )}
                       <div className="flex-1">
                         <p className="font-medium text-white">{candidate.name}</p>
-                        {hasElectionEnded(modalElection)}
                       </div>
                     </div>
                   ))}

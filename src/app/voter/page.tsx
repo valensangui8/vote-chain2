@@ -270,9 +270,29 @@ export default function VoterPage() {
     }
   }
 
+  function hasElectionEnded(election: Invitation["elections"]): boolean {
+    const now = new Date();
+    
+    // If status is explicitly "ended", it's ended
+    if (election.status === "ended") return true;
+    
+    // Check if election has ended (compare with time)
+    if (election.ends_at) {
+      const endDate = new Date(election.ends_at);
+      if (endDate.getTime() <= now.getTime()) {
+        return true;
+      }
+    }
+    
+    return false;
+  }
+
   const pendingInvitations = invitations.filter((i) => i.status === "pending");
   const acceptedInvitations = invitations.filter(
     (i) => i.status === "accepted" && isElectionActive(i.elections)
+  );
+  const endedElections = invitations.filter(
+    (i) => i.status === "accepted" && !isElectionActive(i.elections) && hasElectionEnded(i.elections)
   );
 
   return (
@@ -365,6 +385,41 @@ export default function VoterPage() {
             ))}
           </div>
         </div>
+      )}
+
+      {/* Ended Elections - View Results */}
+      {endedElections.length > 0 && (
+        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <h3 className="text-lg font-semibold text-slate-900 mb-4">Ended Elections</h3>
+          <div className="space-y-4">
+            {endedElections.map((inv) => (
+              <div
+                key={inv.id}
+                className="rounded-lg border border-slate-200 p-4"
+              >
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <p className="font-medium text-slate-900">{inv.elections.name}</p>
+                    <p className="text-sm text-slate-600 mt-1">
+                      {inv.elections.ends_at
+                        ? `Ended: ${new Date(inv.elections.ends_at).toLocaleString()}`
+                        : "Ended"}
+                    </p>
+                  </div>
+                  <span className="ml-4 rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-800">
+                    Ended
+                  </span>
+                </div>
+                <button
+                  onClick={() => router.push(`/results/${inv.election_id}`)}
+                  className="mt-3 w-full rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-green-500"
+                >
+                  📊 View Results
+                </button>
+              </div>
+            ))}
+          </div>
+        </section>
       )}
 
       {invitations.length === 0 && authenticated && user?.email?.address && (

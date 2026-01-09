@@ -52,6 +52,7 @@ export default function OrganizerPage() {
   const [electionName, setElectionName] = useState("");
   const [startsAt, setStartsAt] = useState("");
   const [endsAt, setEndsAt] = useState("");
+  const [isPublic, setIsPublic] = useState(false);
   const [candidateName, setCandidateName] = useState("");
   const [candidateImage, setCandidateImage] = useState("");
   const [inviteeEmail, setInviteeEmail] = useState("");
@@ -435,14 +436,14 @@ export default function OrganizerPage() {
       const endsUnix = endsAt ? Math.floor(new Date(endsAt).getTime() / 1000) : 0;
 
       const votingAbi = parseAbi([
-        "function createElection(uint256 electionId,uint256 groupId,uint256 externalNullifier,uint64 startsAt,uint64 endsAt)",
+        "function createElection(uint256 electionId,uint256 groupId,uint256 externalNullifier,uint64 startsAt,uint64 endsAt,bool isPublic)",
       ]);
       const createElectionTxHash = await sendSmartWalletContractTx({
         smartWallet: smartWallet!,
         to: contracts.voting as `0x${string}`,
         abi: votingAbi,
         functionName: "createElection",
-        args: [electionIdBig, groupIdBig, externalNullifierBig, BigInt(startsUnix), BigInt(endsUnix)],
+        args: [electionIdBig, groupIdBig, externalNullifierBig, BigInt(startsUnix), BigInt(endsUnix), isPublic],
       });
       console.log("✓ Election creation tx sent:", createElectionTxHash);
 
@@ -492,6 +493,7 @@ export default function OrganizerPage() {
           onchainElectionId,
           onchainGroupId: groupIdBig.toString(),
           externalNullifier,
+          isPublic: isPublic,
           status: normalizedStartsAt && new Date(normalizedStartsAt).getTime() <= new Date().getTime() ? "active" : "draft",
         }),
       });
@@ -598,6 +600,7 @@ export default function OrganizerPage() {
       setElectionName("");
       setStartsAt("");
       setEndsAt("");
+      setIsPublic(false);
       setNewCandidates([]);
       setActiveTab("dashboard");
 
@@ -1009,7 +1012,7 @@ export default function OrganizerPage() {
                         onClick={() => openDetailsModal(election)}
                       >
                         <div className="flex items-start justify-between">
-                          <div>
+                          <div className="flex-1">
                             <h3 className="text-lg font-semibold text-white">{election.name}</h3>
                             <p className="mt-1 text-sm text-slate-400">
                               Ended {election.ends_at ? new Date(election.ends_at).toLocaleString(undefined, {
@@ -1022,6 +1025,18 @@ export default function OrganizerPage() {
                           <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-medium text-slate-200">
                             Ended
                           </span>
+                        </div>
+                        {/* Quick access to results */}
+                        <div className="mt-4 pt-4 border-t border-white/10">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              window.location.href = `/results/${election.id}`;
+                            }}
+                            className="w-full rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-green-500 flex items-center justify-center gap-2"
+                          >
+                            📊 View Results
+                          </button>
                         </div>
                       </div>
                     ))}
@@ -1182,6 +1197,29 @@ export default function OrganizerPage() {
                   value={endsAt}
                   onChange={(e) => setEndsAt(e.target.value)}
                 />
+              </label>
+            </div>
+
+            {/* Public/Private Toggle */}
+            <div className="pt-2 border-t border-slate-200">
+              <label className="flex items-center justify-between cursor-pointer">
+                <div>
+                  <span className="text-sm font-medium text-slate-700">Public Election</span>
+                  <p className="text-xs text-slate-500 mt-1">
+                    {isPublic 
+                      ? "Anyone can view the results" 
+                      : "Only participants and organizer can view results"}
+                  </p>
+                </div>
+                <div className="relative">
+                  <input
+                    type="checkbox"
+                    className="sr-only peer"
+                    checked={isPublic}
+                    onChange={(e) => setIsPublic(e.target.checked)}
+                  />
+                  <div className="w-11 h-6 bg-slate-300 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                </div>
               </label>
             </div>
 
@@ -1518,7 +1556,18 @@ export default function OrganizerPage() {
             )}
 
             {/* Actions */}
-            <div className="flex gap-3 border-t border-white/10 pt-4">
+            <div className="flex gap-3 border-t border-slate-200 pt-4">
+              {hasElectionEnded(modalElection) && (
+                <button
+                  onClick={() => {
+                    closeDetailsModal();
+                    window.location.href = `/results/${modalElection.id}`;
+                  }}
+                  className="flex-1 rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-green-500"
+                >
+                  📊 View Full Results
+                </button>
+              )}
               {!hasElectionEnded(modalElection) && (
                 <button
                   onClick={() => {

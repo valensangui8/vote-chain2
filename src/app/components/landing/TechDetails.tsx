@@ -38,7 +38,7 @@ export function TechDetails() {
                         viewport={{ once: true }}
                         className="text-3xl md:text-5xl font-bold text-white mb-6"
                     >
-                        How It Works Under the Hood
+                        Under the Hood
                     </motion.h2>
                     <motion.p
                         initial={{ opacity: 0, y: 20 }}

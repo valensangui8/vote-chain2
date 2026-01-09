@@ -14,6 +14,7 @@ contract Voting {
         uint64 startsAt;
         uint64 endsAt;
         address owner;
+        bool isPublic;
         bool exists;
     }
 
@@ -30,7 +31,8 @@ contract Voting {
         uint256 externalNullifier,
         uint64 startsAt,
         uint64 endsAt,
-        address indexed owner
+        address indexed owner,
+        bool isPublic
     );
     event CandidateAdded(uint256 indexed electionId, uint256 indexed candidateId, string name, string image);
     event VoteCast(
@@ -65,12 +67,14 @@ contract Voting {
     /// @param externalNullifier The external nullifier for this election
     /// @param startsAt Unix timestamp when voting starts (0 = immediately)
     /// @param endsAt Unix timestamp when voting ends (0 = no end)
+    /// @param isPublic Whether the election results are publicly viewable
     function createElection(
         uint256 electionId,
         uint256 groupId,
         uint256 externalNullifier,
         uint64 startsAt,
-        uint64 endsAt
+        uint64 endsAt,
+        bool isPublic
     ) external {
         if (elections[electionId].exists) revert ElectionAlreadyExists();
         
@@ -81,10 +85,11 @@ contract Voting {
             startsAt: startsAt,
             endsAt: endsAt,
             owner: msg.sender,
+            isPublic: isPublic,
             exists: true
         });
         
-        emit ElectionCreated(electionId, groupId, externalNullifier, startsAt, endsAt, msg.sender);
+        emit ElectionCreated(electionId, groupId, externalNullifier, startsAt, endsAt, msg.sender, isPublic);
     }
 
     /// @notice Add a candidate to an election
@@ -138,7 +143,7 @@ contract Voting {
         semaphore.validateProof(election.groupId, proof);
 
         nullifierUsed[proof.nullifier] = true;
-        electionCandidates[electionId][candidateId - 1].voteCount += 1;
+            electionCandidates[electionId][candidateId - 1].voteCount += 1;
         
         emit VoteCast(electionId, candidateId, proof.nullifier, proof.message);
     }
@@ -154,5 +159,12 @@ contract Voting {
             return 0;
         }
         return electionCandidates[electionId][candidateId - 1].voteCount;
+    }
+    
+    /// @notice Check if election is public
+    /// @param electionId The election ID to check
+    /// @return Whether the election results are publicly viewable
+    function isElectionPublic(uint256 electionId) external view returns (bool) {
+        return elections[electionId].isPublic;
     }
 }

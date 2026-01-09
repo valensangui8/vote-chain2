@@ -60,7 +60,7 @@ contract GroupManager {
         semaphore.addMember(meta.groupId, identityCommitment);
         emit VoterCommitmentAdded(electionId, meta.groupId, identityCommitment);
     }
-    
+
     /// @notice Get the Semaphore group ID for an election
     function getGroupId(uint256 electionId) external view returns (uint256) {
         return electionGroups[electionId].groupId;

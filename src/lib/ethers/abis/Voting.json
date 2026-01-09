@@ -114,6 +114,12 @@
         "internalType": "address",
         "name": "owner",
         "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "bool",
+        "name": "isPublic",
+        "type": "bool"
       }
     ],
     "name": "ElectionCreated",
@@ -254,6 +260,11 @@
         "internalType": "uint64",
         "name": "endsAt",
         "type": "uint64"
+      },
+      {
+        "internalType": "bool",
+        "name": "isPublic",
+        "type": "bool"
       }
     ],
     "name": "createElection",
@@ -342,6 +353,11 @@
       },
       {
         "internalType": "bool",
+        "name": "isPublic",
+        "type": "bool"
+      },
+      {
+        "internalType": "bool",
         "name": "exists",
         "type": "bool"
       }
@@ -422,6 +438,25 @@
         "internalType": "contract GroupManager",
         "name": "",
         "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "electionId",
+        "type": "uint256"
+      }
+    ],
+    "name": "isElectionPublic",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
       }
     ],
     "stateMutability": "view",

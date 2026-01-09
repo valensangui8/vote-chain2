@@ -30,7 +30,7 @@ type ElectionInfo = {
 export default function ResultsPage() {
   const params = useParams();
   const router = useRouter();
-  const { user, authenticated, login } = usePrivy();
+  const { user, authenticated, login, ready } = usePrivy();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [election, setElection] = useState<ElectionInfo | null>(null);
@@ -43,10 +43,18 @@ export default function ResultsPage() {
   const [requiresAuth, setRequiresAuth] = useState(false);
 
   useEffect(() => {
+    // CRITICAL: Wait for Privy to be ready before fetching
+    // This prevents the race condition where we fetch without userId
+    if (!ready) {
+      console.log("⏳ Waiting for Privy to be ready...");
+      return;
+    }
+    
     if (params?.id) {
+      console.log("🚀 Privy ready, fetching results", { authenticated, hasUser: !!user?.id });
       fetchResults();
     }
-  }, [params?.id, user?.id]);
+  }, [params?.id, ready, user?.id]); // Only depend on ready and user.id, not authenticated
 
   async function fetchResults() {
     if (!params?.id) {
@@ -60,10 +68,13 @@ export default function ResultsPage() {
       setError(null);
 
       // Build URL with optional userId parameter
+      // Always include userId if user is authenticated
       let url = `/api/elections/${params.id}/results`;
       if (user?.id) {
         url += `?userId=${encodeURIComponent(user.id)}`;
       }
+
+      console.log("🔍 Fetching results:", { url, hasUser: !!user?.id, authenticated });
 
       const res = await fetch(url);
       const data = await res.json();

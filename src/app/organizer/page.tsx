@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Modal } from "../components/Modal";
+import { TransactionProgressModal, type TransactionStep } from "../components/TransactionProgressModal";
 import { usePrivy } from "@privy-io/react-auth";
 import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
 import { contracts } from "@/lib/ethers";
@@ -63,6 +64,10 @@ export default function OrganizerPage() {
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [modalElection, setModalElection] = useState<Election | null>(null);
   const [loadingResults, setLoadingResults] = useState(false);
+  
+  // Transaction progress tracking
+  const [showProgressModal, setShowProgressModal] = useState(false);
+  const [transactionSteps, setTransactionSteps] = useState<TransactionStep[]>([]);
 
   // Helper to wait for transaction confirmation
   async function waitForTransaction(txHash: string, description: string = "Transaction") {
@@ -517,60 +522,49 @@ export default function OrganizerPage() {
       });
 
       // 4) Add candidates if any
-      if (newCandidates.length > 0) {
+       if (newCandidates.length > 0) {
         if (!createdElection.id) {
           throw new Error("Created election ID is missing, cannot add candidates.");
         }
         setToast(`Adding ${newCandidates.length} candidate(s) to blockchain...`);
-        const votingAbi = parseAbi(["function addCandidate(uint256 electionId,string name,string image)"]);
+        
+        // Prepare arrays for batch function
+        const names = newCandidates.map(c => c.name);
+        const images = newCandidates.map(c => c.image || "");
 
-        console.log("📝 Adding candidates to contract:", {
+        console.log("📝 Adding candidates via BATCH function:", {
           electionId: onchainElectionId,
           electionIdBig: electionIdBig.toString(),
           supabaseOnchainId: createdElection.onchain_election_id,
           contractAddress: contracts.voting,
           candidateCount: newCandidates.length,
-          USING_ID: electionIdBig.toString(),
+          names,
         });
 
-        for (let i = 0; i < newCandidates.length; i++) {
-          const candidate = newCandidates[i];
-          try {
-            console.log(`Adding candidate ${i + 1}/${newCandidates.length}:`, {
-              name: candidate.name,
-              image: candidate.image || "(none)",
-              electionId: electionIdBig.toString(),
-            });
+        try {
+          // Use the new addCandidates batch function (1 transaction instead of N)
+          const txHash = await sendSmartWalletContractTx({
+            smartWallet: smartWallet!,
+            to: contracts.voting as `0x${string}`,
+            abi: parseAbi(["function addCandidates(uint256 electionId, string[] names, string[] images)"]),
+            functionName: "addCandidates",
+            args: [electionIdBig, names, images],
+          });
+          console.log(`✓ Batch addCandidates tx sent (${newCandidates.length} candidates):`, txHash);
 
-            // Add on-chain
-            console.log(`📤 Sending addCandidate tx with:`, {
-              electionId: electionIdBig.toString(),
-              candidateName: candidate.name,
-              contractAddress: contracts.voting,
-            });
+          // Wait for confirmation
+          setToast(`Waiting for all ${newCandidates.length} candidates to be confirmed...`);
+          await waitForTransaction(txHash, `addCandidates(${newCandidates.length} candidates)`);
+          console.log(`✓✓ All ${newCandidates.length} candidates CONFIRMED on blockchain!`);
 
-            const txHash = await sendSmartWalletContractTx({
-              smartWallet: smartWallet!,
-              to: contracts.voting as `0x${string}`,
-              abi: votingAbi,
-              functionName: "addCandidate",
-              args: [electionIdBig, candidate.name, candidate.image || ""],
-            });
-            console.log(`✓ Candidate ${candidate.name} tx sent:`, txHash);
-
-            // CRITICAL: Wait for transaction to be confirmed on blockchain
-            setToast(`Waiting for candidate "${candidate.name}" to be confirmed...`);
-            await waitForTransaction(txHash, `addCandidate(${candidate.name})`);
-            console.log(`✓✓ Candidate ${candidate.name} CONFIRMED on blockchain!`);
-
-            // Add to Supabase
+          // Now sync all candidates to Supabase
+          setToast("Saving candidates to database...");
+          for (const candidate of newCandidates) {
             const candidatePayload = {
               electionId: createdElection.id,
               name: candidate.name,
               ...(candidate.image && candidate.image.trim() ? { imageUrl: candidate.image.trim() } : {}),
             };
-
-            console.log("Sending candidate to Supabase:", candidatePayload);
 
             const candRes = await fetch("/api/candidates", {
               method: "POST",
@@ -581,19 +575,16 @@ export default function OrganizerPage() {
             if (!candRes.ok) {
               console.warn(`⚠️ Failed to sync candidate ${candidate.name} to database (but it's on-chain)`);
             } else {
-              const candData = await candRes.json();
-              console.log("✓ Candidate saved to Supabase:", candData);
+              console.log(`✓ Candidate ${candidate.name} saved to Supabase`);
             }
-          } catch (err: any) {
-            console.error(`❌ Error adding candidate ${candidate.name}:`, err);
-            setToast(`Failed to add "${candidate.name}". You can add it manually later.`);
-            // Continue with next candidate instead of failing completely
           }
-        }
 
-        // Small delay to ensure all candidates are saved
-        await new Promise(resolve => setTimeout(resolve, 500));
-        setToast("Candidates added successfully!");
+          setToast("All candidates added successfully!");
+        } catch (err: any) {
+          console.error("❌ Error adding candidates:", err);
+          setToast(`Failed to add candidates: ${err.message}`);
+          throw err;
+        }
       }
 
       setToast("Election created successfully!");
@@ -1200,27 +1191,92 @@ export default function OrganizerPage() {
               </label>
             </div>
 
-            {/* Public/Private Toggle */}
-            <div className="pt-2 border-t border-slate-200">
-              <label className="flex items-center justify-between cursor-pointer">
-                <div>
-                  <span className="text-sm font-medium text-slate-700">Public Election</span>
-                  <p className="text-xs text-slate-500 mt-1">
+            {/* Public/Private Selection - Improved clarity */}
+            <div className="pt-4 border-t border-white/10">
+              <h4 className="text-sm font-semibold text-white mb-3">Results Visibility</h4>
+              <p className="text-xs text-slate-400 mb-4">Choose who can see the election results after voting ends</p>
+              
+              <div className="grid grid-cols-2 gap-3">
+                {/* Private Option */}
+                <button
+                  type="button"
+                  onClick={() => setIsPublic(false)}
+                  className={`relative rounded-xl border-2 p-4 text-left transition-all ${
+                    !isPublic
+                      ? "border-purple-500 bg-purple-500/10"
+                      : "border-white/10 bg-white/5 hover:border-white/20"
+                  }`}
+                >
+                  <div className="flex items-start gap-3">
+                    <div className={`mt-0.5 w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                      !isPublic ? "border-purple-500" : "border-slate-500"
+                    }`}>
+                      {!isPublic && (
+                        <div className="w-3 h-3 rounded-full bg-purple-500"></div>
+                      )}
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-lg">🔒</span>
+                        <span className={`text-sm font-semibold ${!isPublic ? "text-purple-300" : "text-slate-300"}`}>
+                          Private
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-400 leading-relaxed">
+                        Only <strong>participants who voted</strong> and the <strong>organizer</strong> can see results
+                      </p>
+                    </div>
+                  </div>
+                </button>
+
+                {/* Public Option */}
+                <button
+                  type="button"
+                  onClick={() => setIsPublic(true)}
+                  className={`relative rounded-xl border-2 p-4 text-left transition-all ${
+                    isPublic
+                      ? "border-green-500 bg-green-500/10"
+                      : "border-white/10 bg-white/5 hover:border-white/20"
+                  }`}
+                >
+                  <div className="flex items-start gap-3">
+                    <div className={`mt-0.5 w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                      isPublic ? "border-green-500" : "border-slate-500"
+                    }`}>
+                      {isPublic && (
+                        <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                      )}
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-lg">🌍</span>
+                        <span className={`text-sm font-semibold ${isPublic ? "text-green-300" : "text-slate-300"}`}>
+                          Public
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-400 leading-relaxed">
+                        <strong>Anyone</strong> can see the results, even without participating
+                      </p>
+                    </div>
+                  </div>
+                </button>
+              </div>
+              
+              {/* Additional info based on selection */}
+              <div className={`mt-3 rounded-lg p-3 border ${
+                isPublic 
+                  ? "bg-green-500/5 border-green-500/20" 
+                  : "bg-purple-500/5 border-purple-500/20"
+              }`}>
+                <p className="text-xs text-slate-300 flex items-start gap-2">
+                  <span className="text-base">{isPublic ? "ℹ️" : "🔐"}</span>
+                  <span>
                     {isPublic 
-                      ? "Anyone can view the results" 
-                      : "Only participants and organizer can view results"}
-                  </p>
-                </div>
-                <div className="relative">
-                  <input
-                    type="checkbox"
-                    className="sr-only peer"
-                    checked={isPublic}
-                    onChange={(e) => setIsPublic(e.target.checked)}
-                  />
-                  <div className="w-11 h-6 bg-slate-300 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
-                </div>
-              </label>
+                      ? "This election will appear in the public elections page and anyone can view results" 
+                      : "This election is private. Only invited voters who participated and you can see results"}
+                  </span>
+                </p>
+              </div>
             </div>
 
             {/* Candidates Section */}

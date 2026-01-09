@@ -109,6 +109,28 @@ contract Voting {
         emit CandidateAdded(electionId, candidateId, name, image);
     }
 
+    /// @notice Add multiple candidates to an election in one transaction
+    /// @dev Reduces transaction count from N to 1 for adding N candidates
+    function addCandidates(
+        uint256 electionId,
+        string[] memory names,
+        string[] memory images
+    ) external {
+        Election storage election = elections[electionId];
+        if (!election.exists) revert ElectionNotFound();
+        if (election.owner != msg.sender) revert NotOwner();
+        require(names.length == images.length, "Arrays length mismatch");
+        require(names.length > 0, "Must add at least one candidate");
+        
+        for (uint256 i = 0; i < names.length; i++) {
+            uint256 candidateId = electionCandidates[electionId].length + 1;
+            electionCandidates[electionId].push(
+                Candidate({id: candidateId, name: names[i], image: images[i], voteCount: 0})
+            );
+            emit CandidateAdded(electionId, candidateId, names[i], images[i]);
+        }
+    }
+
     function _isActive(Election memory election) internal view returns (bool) {
         uint64 now_ = uint64(block.timestamp);
         bool started = election.startsAt == 0 || now_ >= election.startsAt;

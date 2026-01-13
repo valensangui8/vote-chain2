@@ -57,6 +57,12 @@ export default function OrganizerPage() {
   const [candidateName, setCandidateName] = useState("");
   const [candidateImage, setCandidateImage] = useState("");
   const [inviteeEmail, setInviteeEmail] = useState("");
+  
+  // Bulk invite state
+  const [inviteMode, setInviteMode] = useState<"single" | "bulk">("single");
+  const [bulkEmails, setBulkEmails] = useState("");
+  const [bulkResult, setBulkResult] = useState<{total: number, inserted: number, duplicates: number} | null>(null);
+  
   const [newCandidates, setNewCandidates] = useState<Array<{ name: string; image: string }>>([]);
 
   // Modal states
@@ -345,6 +351,21 @@ export default function OrganizerPage() {
     } catch (err) {
       console.error("Failed to load election details", err);
       return [];
+    }
+  }
+
+  // Helper to fetch invitations for an election
+  async function fetchInvitations(electionId: string) {
+    try {
+      const invRes = await fetch(`/api/invitations?electionId=${electionId}`);
+      const invBody = await invRes.json();
+      if (invRes.ok) {
+        setElectionInvitations(invBody.invitations || []);
+      } else {
+        console.error("Failed to load invitations:", invBody.error);
+      }
+    } catch (err) {
+      console.error("Error fetching invitations:", err);
     }
   }
 
@@ -1408,25 +1429,139 @@ export default function OrganizerPage() {
               </div>
 
               <div className="rounded-2xl border border-white/10 bg-white/5 p-6 shadow-sm">
-                <div className="flex gap-2">
-                  <input
-                    type="email"
-                    className="flex-1 rounded-lg border border-white/20 px-3 py-2 text-sm text-white placeholder:text-slate-400"
-                    placeholder="voter@example.com"
-                    value={inviteeEmail}
-                    onChange={(e) => setInviteeEmail(e.target.value)}
-                    onKeyPress={(e) => e.key === "Enter" && sendInvitation()}
-                  />
+                {/* Invite Mode Toggle */}
+                <div className="flex gap-4 mb-6 border-b border-white/10 pb-4">
                   <button
-                    className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-500/100"
-                    onClick={() => sendInvitation()}
+                    onClick={() => { setInviteMode("single"); setBulkResult(null); }}
+                    className={`text-sm font-medium transition ${inviteMode === "single" ? "text-indigo-400 border-b-2 border-indigo-400 -mb-[17px]" : "text-slate-400 hover:text-white"}`}
                   >
-                    Send Invitation
+                    Single Invite
+                  </button>
+                  <button
+                    onClick={() => { setInviteMode("bulk"); setBulkResult(null); }}
+                    className={`text-sm font-medium transition ${inviteMode === "bulk" ? "text-indigo-400 border-b-2 border-indigo-400 -mb-[17px]" : "text-slate-400 hover:text-white"}`}
+                  >
+                    Bulk Invite
                   </button>
                 </div>
-                <p className="mt-2 text-xs text-slate-400">
-                  Voters will receive an invitation and can join using their Privy email.
-                </p>
+
+                {inviteMode === "single" ? (
+                  <>
+                    <div className="flex gap-2">
+                      <input
+                        type="email"
+                        className="flex-1 rounded-lg border border-white/20 px-3 py-2 text-sm text-white placeholder:text-slate-400"
+                        placeholder="voter@example.com"
+                        value={inviteeEmail}
+                        onChange={(e) => setInviteeEmail(e.target.value)}
+                        onKeyPress={(e) => e.key === "Enter" && sendInvitation()}
+                      />
+                      <button
+                        className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-500/100"
+                        onClick={() => sendInvitation()}
+                        disabled={busy}
+                      >
+                        {busy ? "Sending..." : "Send Invitation"}
+                      </button>
+                    </div>
+                    <p className="mt-2 text-xs text-slate-400">
+                      Voters will receive an invitation and can join using their Privy email.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-medium text-slate-300 mb-2">
+                          Paste email addresses (separated by commas, spaces, or new lines)
+                        </label>
+                        <textarea
+                          className="w-full h-32 rounded-lg border border-white/20 bg-black/20 px-3 py-2 text-sm text-white placeholder:text-slate-500 font-mono"
+                          placeholder={"alice@example.com\nbob@example.com, charlie@example.com"}
+                          value={bulkEmails}
+                          onChange={(e) => setBulkEmails(e.target.value)}
+                        />
+                      </div>
+                      
+                      {bulkResult && (
+                        <div className="rounded-lg bg-indigo-500/10 border border-indigo-500/20 p-4 mb-4">
+                          <h4 className="text-sm font-semibold text-indigo-300 mb-2">Results</h4>
+                          <div className="grid grid-cols-3 gap-4 text-center">
+                            <div>
+                              <p className="text-xl font-bold text-white">{bulkResult.total}</p>
+                              <p className="text-xs text-slate-400">Total Valid</p>
+                            </div>
+                            <div>
+                              <p className="text-xl font-bold text-green-400">{bulkResult.inserted}</p>
+                              <p className="text-xs text-slate-400">Sent</p>
+                            </div>
+                            <div>
+                              <p className="text-xl font-bold text-amber-400">{bulkResult.duplicates}</p>
+                              <p className="text-xs text-slate-400">Duplicates</p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      <button
+                        className="w-full rounded-lg bg-indigo-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-indigo-500/100 disabled:opacity-50 disabled:cursor-not-allowed"
+                        onClick={async () => {
+                          if (!bulkEmails.trim()) return;
+                          
+                          setBusy(true);
+                          setBulkResult(null);
+                          
+                          // Parse emails
+                          const emails = bulkEmails
+                            .split(/[\s,]+/)
+                            .map(e => e.trim())
+                            .filter(e => e && e.includes("@"));
+                            
+                          if (emails.length === 0) {
+                            setToast("No valid emails found");
+                            setBusy(false);
+                            return;
+                          }
+                          
+                          try {
+                            setToast(`Processing ${emails.length} emails...`);
+                            const res = await fetch("/api/invitations/batch", {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({
+                                electionId: selectedElectionForInvite!.id,
+                                emails
+                              }),
+                            });
+                            
+                            const data = await res.json();
+                            
+                            if (!res.ok) {
+                              throw new Error(data.error || "Failed to send batch invites");
+                            }
+                            
+                            setBulkResult({
+                              total: data.total,
+                              inserted: data.inserted,
+                              duplicates: data.duplicates
+                            });
+                            
+                            setToast(`Successfully sent ${data.inserted} invitations!`);
+                            setBulkEmails(""); // Clear input on success
+                            fetchInvitations(selectedElectionForInvite!.id); // Refresh list
+                          } catch (err: any) {
+                            setToast("Error: " + err.message);
+                          } finally {
+                            setBusy(false);
+                          }
+                        }}
+                        disabled={busy || !bulkEmails.trim()}
+                      >
+                        {busy ? "Processing..." : `Send Bulk Invitations`}
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
             </>
           )}
@@ -1665,26 +1800,140 @@ export default function OrganizerPage() {
               </p>
             </div>
 
-            <div>
-              <label className="block text-sm font-semibold text-white mb-2">
-                Voter Email Address
-              </label>
-              <input
-                type="email"
-                value={inviteeEmail}
-                onChange={(e) => setInviteeEmail(e.target.value)}
-                placeholder="voter@example.com"
-                className="w-full rounded-lg border border-white/20 px-4 py-2 text-sm text-white placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-              />
+            {/* Invite Mode Toggle */}
+            <div className="flex gap-4 border-b border-white/10 pb-3">
+              <button
+                onClick={() => { setInviteMode("single"); setBulkResult(null); }}
+                className={`text-sm font-medium transition ${inviteMode === "single" ? "text-indigo-400 border-b-2 border-indigo-400 -mb-[13px]" : "text-slate-400 hover:text-white"}`}
+              >
+                Single Invite
+              </button>
+              <button
+                onClick={() => { setInviteMode("bulk"); setBulkResult(null); }}
+                className={`text-sm font-medium transition ${inviteMode === "bulk" ? "text-indigo-400 border-b-2 border-indigo-400 -mb-[13px]" : "text-slate-400 hover:text-white"}`}
+              >
+                Bulk Invite
+              </button>
             </div>
 
-            <button
-              onClick={() => sendInvitation(modalElection)}
-              disabled={busy || !inviteeEmail.trim()}
-              className="w-full rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-500/100 disabled:opacity-60 disabled:cursor-not-allowed"
-            >
-              {busy ? "Sending..." : "Send Invitation"}
-            </button>
+            {inviteMode === "single" ? (
+              <>
+                <div>
+                  <label className="block text-sm font-semibold text-white mb-2">
+                    Voter Email Address
+                  </label>
+                  <input
+                    type="email"
+                    value={inviteeEmail}
+                    onChange={(e) => setInviteeEmail(e.target.value)}
+                    placeholder="voter@example.com"
+                    onKeyPress={(e) => e.key === "Enter" && sendInvitation(modalElection)}
+                    className="w-full rounded-lg border border-white/20 px-4 py-2 text-sm text-white placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                  />
+                </div>
+
+                <button
+                  onClick={() => sendInvitation(modalElection)}
+                  disabled={busy || !inviteeEmail.trim()}
+                  className="w-full rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-500/100 disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  {busy ? "Sending..." : "Send Invitation"}
+                </button>
+              </>
+            ) : (
+              <>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-300 mb-2">
+                      Paste email addresses (separated by commas, spaces, or new lines)
+                    </label>
+                    <textarea
+                      className="w-full h-32 rounded-lg border border-white/20 bg-black/20 px-3 py-2 text-sm text-white placeholder:text-slate-500 font-mono"
+                      placeholder={"alice@example.com\nbob@example.com, charlie@example.com"}
+                      value={bulkEmails}
+                      onChange={(e) => setBulkEmails(e.target.value)}
+                    />
+                  </div>
+                  
+                  {bulkResult && (
+                    <div className="rounded-lg bg-indigo-500/10 border border-indigo-500/20 p-4">
+                      <h4 className="text-sm font-semibold text-indigo-300 mb-2">Results</h4>
+                      <div className="grid grid-cols-3 gap-4 text-center">
+                        <div>
+                          <p className="text-xl font-bold text-white">{bulkResult.total}</p>
+                          <p className="text-xs text-slate-400">Total Valid</p>
+                        </div>
+                        <div>
+                          <p className="text-xl font-bold text-green-400">{bulkResult.inserted}</p>
+                          <p className="text-xs text-slate-400">Sent</p>
+                        </div>
+                        <div>
+                          <p className="text-xl font-bold text-amber-400">{bulkResult.duplicates}</p>
+                          <p className="text-xs text-slate-400">Duplicates</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  <button
+                    className="w-full rounded-lg bg-indigo-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-indigo-500/100 disabled:opacity-50 disabled:cursor-not-allowed"
+                    onClick={async () => {
+                      if (!bulkEmails.trim()) return;
+                      
+                      setBusy(true);
+                      setBulkResult(null);
+                      
+                      // Parse emails
+                      const emails = bulkEmails
+                        .split(/[\s,]+/)
+                        .map(e => e.trim())
+                        .filter(e => e && e.includes("@"));
+                        
+                      if (emails.length === 0) {
+                        setToast("No valid emails found");
+                        setBusy(false);
+                        return;
+                      }
+                      
+                      try {
+                        setToast(`Processing ${emails.length} emails...`);
+                        const res = await fetch("/api/invitations/batch", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({
+                            electionId: modalElection.id,
+                            emails
+                          }),
+                        });
+                        
+                        const data = await res.json();
+                        
+                        if (!res.ok) {
+                          throw new Error(data.error || "Failed to send batch invites");
+                        }
+                        
+                        setBulkResult({
+                          total: data.total,
+                          inserted: data.inserted,
+                          duplicates: data.duplicates
+                        });
+                        
+                        setToast(`Successfully sent ${data.inserted} invitations!`);
+                        setBulkEmails(""); // Clear input on success
+                        fetchInvitations(modalElection.id); // Refresh list
+                      } catch (err: any) {
+                        setToast("Error: " + err.message);
+                      } finally {
+                        setBusy(false);
+                      }
+                    }}
+                    disabled={busy || !bulkEmails.trim()}
+                  >
+                    {busy ? "Processing..." : `Send Bulk Invitations`}
+                  </button>
+                </div>
+              </>
+            )}
 
             {/* Current Invitations */}
             {electionInvitations.length > 0 && (

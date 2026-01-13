@@ -213,17 +213,60 @@ export default function ElectionDetailPage() {
       const currentBlock = await provider.getBlockNumber();
       const fromBlock = Math.max(0, currentBlock - 10000);
 
-      const logs = await provider.getLogs({
-        address: contracts.semaphore,
-        topics: [
-          ethers.id("MemberAdded(uint256,uint256,uint256,uint256)"),
-          ethers.toBeHex(groupId, 32), // groupId is indexed
-        ],
-        fromBlock,
-        toBlock: "latest",
-      });
+      // Retry logic to handle race condition where events aren't indexed immediately
+      let logs: any[] = [];
+      let retryCount = 0;
+      const maxRetries = 5;
+      
+      while (retryCount < maxRetries) {
+        logs = await provider.getLogs({
+          address: contracts.semaphore,
+          topics: [
+            ethers.id("MemberAdded(uint256,uint256,uint256,uint256)"),
+            ethers.toBeHex(groupId, 32), // groupId is indexed
+          ],
+          fromBlock,
+          toBlock: "latest",
+        });
 
-      console.log(`📊 Found ${logs.length} MemberAdded events for group ${groupId.toString()}`);
+        console.log(`📊 Found ${logs.length} MemberAdded events for group ${groupId.toString()} (attempt ${retryCount + 1}/${maxRetries})`);
+        
+        // Check if our commitment is in the logs
+        const myCommitmentBigInt = getCommitment(identity);
+        const foundInLogs = logs.some((log) => {
+          try {
+            const parsed = semaphoreInterface.parseLog({
+              topics: log.topics as string[],
+              data: log.data,
+            });
+            return BigInt(parsed?.args[2]).toString() === myCommitmentBigInt.toString();
+          } catch {
+            return false;
+          }
+        });
+
+        if (foundInLogs || logs.length > 0) {
+          // If we found our commitment or there are logs, break
+          if (foundInLogs) {
+            console.log("✓ Found our commitment in on-chain events!");
+            break;
+          }
+          // If there are logs but not ours yet, and it's not the first retry, wait a bit
+          if (retryCount > 0) {
+            break;
+          }
+        }
+
+        // Wait before retrying (exponential backoff: 2s, 4s, 6s, 8s, 10s)
+        if (retryCount < maxRetries - 1) {
+          const waitTime = (retryCount + 1) * 2000;
+          console.log(`⏳ Waiting ${waitTime}ms for events to be indexed...`);
+          setProofStatus(`Waiting for blockchain events to be indexed... (${retryCount + 1}/${maxRetries})`);
+          await new Promise(resolve => setTimeout(resolve, waitTime));
+        }
+        
+        retryCount++;
+      }
 
       // Parse events and extract commitments in order
       const commitments: bigint[] = logs
@@ -262,9 +305,12 @@ export default function ElectionDetailPage() {
 
       if (!isInGroup) {
         throw new Error(
-          `Your identity commitment is not registered on-chain for this election. ` +
-          `This can happen if the accept invitation transaction failed or is still pending. ` +
-          `Please go back to the voter dashboard and try accepting the invitation again.`
+          `Your identity commitment is not registered on-chain yet for this election. ` +
+          `This can happen if:\n\n` +
+          `1. The blockchain events are still being indexed (wait 10-20 seconds and try again)\n` +
+          `2. The accept invitation transaction failed\n` +
+          `3. You're using a different browser/device than when you accepted\n\n` +
+          `Please wait a moment and try voting again. If the problem persists, go back to the voter dashboard and re-accept the invitation.`
         );
       }
 

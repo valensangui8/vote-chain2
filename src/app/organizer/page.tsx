@@ -65,6 +65,7 @@ export default function OrganizerPage() {
   const [bulkResult, setBulkResult] = useState<{ total: number, inserted: number, duplicates: number } | null>(null);
 
   const [newCandidates, setNewCandidates] = useState<Array<{ name: string; image: string }>>([]);
+  const MAX_IMAGE_URL_LENGTH = 2048;
 
   // Modal states
   const [showDetailsModal, setShowDetailsModal] = useState(false);
@@ -381,7 +382,16 @@ export default function OrganizerPage() {
       setToast("Candidate name required");
       return;
     }
-    setNewCandidates([...newCandidates, { name: candidateName, image: candidateImage }]);
+    const imageValue = candidateImage.trim();
+    if (imageValue.startsWith("data:")) {
+      setToast("Please use an image URL, not a base64 data URI.");
+      return;
+    }
+    if (imageValue.length > MAX_IMAGE_URL_LENGTH) {
+      setToast(`Image URL too long (max ${MAX_IMAGE_URL_LENGTH} chars).`);
+      return;
+    }
+    setNewCandidates([...newCandidates, { name: candidateName.trim(), image: imageValue }]);
     setCandidateName("");
     setCandidateImage("");
   }
@@ -551,6 +561,10 @@ export default function OrganizerPage() {
 
       // 4) Add candidates if any
       if (newCandidates.length > 0) {
+        const invalidImage = newCandidates.find(candidate => candidate.image.startsWith("data:") || candidate.image.length > MAX_IMAGE_URL_LENGTH);
+        if (invalidImage) {
+          throw new Error("Candidate image must be a URL (not base64) and within length limits.");
+        }
         if (!createdElection.id) {
           throw new Error("Created election ID is missing, cannot add candidates.");
         }
@@ -609,9 +623,48 @@ export default function OrganizerPage() {
 
           setToast("All candidates added successfully!");
         } catch (err: any) {
-          console.error("❌ Error adding candidates:", err);
-          setToast(`Failed to add candidates: ${err.message}`);
-          throw err;
+          console.error("❌ Error adding candidates in batch:", err);
+          setToast("Batch add failed. Trying one-by-one...");
+
+          try {
+            for (let i = 0; i < newCandidates.length; i++) {
+              const candidate = newCandidates[i];
+              const singleTxHash = await sendSmartWalletContractTx({
+                smartWallet: smartWallet!,
+                to: contracts.voting as `0x${string}`,
+                abi: parseAbi(["function addCandidate(uint256 electionId, string name, string image)"]),
+                functionName: "addCandidate",
+                args: [electionIdBig, candidate.name, candidate.image || ""],
+              });
+
+              setToast(`Waiting for candidate ${i + 1}/${newCandidates.length}...`);
+              await waitForTransaction(singleTxHash, `addCandidate(${candidate.name})`);
+
+              const candidatePayload = {
+                electionId: createdElection.id,
+                name: candidate.name,
+                ...(candidate.image && candidate.image.trim() ? { imageUrl: candidate.image.trim() } : {}),
+              };
+
+              const candRes = await fetch("/api/candidates", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(candidatePayload),
+              });
+
+              if (!candRes.ok) {
+                console.warn(`⚠️ Failed to sync candidate ${candidate.name} to database (but it's on-chain)`);
+              } else {
+                console.log(`✓ Candidate ${candidate.name} saved to Supabase`);
+              }
+            }
+
+            setToast("All candidates added successfully!");
+          } catch (fallbackErr: any) {
+            console.error("❌ Error adding candidates one-by-one:", fallbackErr);
+            setToast(`Failed to add candidates: ${fallbackErr.message}`);
+            throw fallbackErr;
+          }
         }
       }
 
@@ -660,6 +713,15 @@ export default function OrganizerPage() {
       setToast("Candidate name required");
       return;
     }
+    const imageValue = candidateImage.trim();
+    if (imageValue.startsWith("data:")) {
+      setToast("Please use an image URL, not a base64 data URI.");
+      return;
+    }
+    if (imageValue.length > MAX_IMAGE_URL_LENGTH) {
+      setToast(`Image URL too long (max ${MAX_IMAGE_URL_LENGTH} chars).`);
+      return;
+    }
 
     try {
       await ensureAuth();
@@ -672,7 +734,7 @@ export default function OrganizerPage() {
         to: contracts.voting as `0x${string}`,
         abi: votingAbi,
         functionName: "addCandidate",
-        args: [BigInt(selectedElection.onchain_election_id), candidateName, candidateImage || ""],
+        args: [BigInt(selectedElection.onchain_election_id), candidateName.trim(), imageValue],
       });
       console.log("✓ Candidate tx sent:", txHash);
 

@@ -27,5 +27,23 @@ export async function sendSmartWalletContractTx(params: {
     args: args as unknown[],
   });
 
-  return smartWallet.sendTransaction({ to, data });
+  const result = await smartWallet.sendTransaction({ to, data });
+
+  if (!result) {
+    throw new Error("Transaction failed to send. Please try again.");
+  }
+
+  if (typeof result === "string") {
+    return result;
+  }
+
+  if (typeof result.hash === "string") {
+    return result.hash;
+  }
+
+  if (typeof result.transactionHash === "string") {
+    return result.transactionHash;
+  }
+
+  throw new Error("Unexpected transaction response from wallet.");
 }

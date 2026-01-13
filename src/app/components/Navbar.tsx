@@ -11,7 +11,7 @@ import { motion, AnimatePresence } from "framer-motion";
 
 export function Navbar() {
   const { authenticated, user, login, logout, ready } = usePrivy();
-  const pathname = usePathname();
+  const pathname = usePathname() ?? "/";
   const router = useRouter();
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -31,7 +31,7 @@ export function Navbar() {
       // Don't redirect from results pages (user wants to see results after login)
       // Don't redirect if already on dashboard or authenticated pages (voter, organizer, admin)
       const publicPages = ["/", "/public-elections"];
-      const authPages = ["/voter", "/organizer", "/admin", "/dashboard"];
+      const authPages = ["/voter", "/organizer", "/dashboard"];
       const isResultsPage = pathname.startsWith("/results");
       const isPublicLandingPage = publicPages.includes(pathname);
       const isAuthPage = authPages.some(page => pathname.startsWith(page));

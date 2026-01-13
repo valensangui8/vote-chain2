@@ -17,8 +17,13 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "ZK Voting",
+  title: "Votechain",
   description: "Anonymous, paymaster-backed voting with Semaphore + Privy",
+  icons: {
+    icon: "/votechain-logo.jpg",
+    shortcut: "/votechain-logo.jpg",
+    apple: "/votechain-logo.jpg",
+  },
 };
 
 export default function RootLayout({

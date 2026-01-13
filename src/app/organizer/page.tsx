@@ -10,6 +10,7 @@ import { parseAbi } from "viem";
 import { sendSmartWalletContractTx } from "@/lib/privy";
 import { ethers } from "ethers";
 import { generateOnChainElectionId, generateExternalNullifier } from "@/lib/utils/ids";
+import { CountdownTimer } from "@/app/components/CountdownTimer";
 
 type Election = {
   id: string;
@@ -57,12 +58,12 @@ export default function OrganizerPage() {
   const [candidateName, setCandidateName] = useState("");
   const [candidateImage, setCandidateImage] = useState("");
   const [inviteeEmail, setInviteeEmail] = useState("");
-  
+
   // Bulk invite state
   const [inviteMode, setInviteMode] = useState<"single" | "bulk">("single");
   const [bulkEmails, setBulkEmails] = useState("");
-  const [bulkResult, setBulkResult] = useState<{total: number, inserted: number, duplicates: number} | null>(null);
-  
+  const [bulkResult, setBulkResult] = useState<{ total: number, inserted: number, duplicates: number } | null>(null);
+
   const [newCandidates, setNewCandidates] = useState<Array<{ name: string; image: string }>>([]);
 
   // Modal states
@@ -70,10 +71,16 @@ export default function OrganizerPage() {
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [modalElection, setModalElection] = useState<Election | null>(null);
   const [loadingResults, setLoadingResults] = useState(false);
-  
+
   // Transaction progress tracking
   const [showProgressModal, setShowProgressModal] = useState(false);
   const [transactionSteps, setTransactionSteps] = useState<TransactionStep[]>([]);
+
+  useEffect(() => {
+    if (!toast) return;
+    const timeout = setTimeout(() => setToast(null), 5000);
+    return () => clearTimeout(timeout);
+  }, [toast]);
 
   // Helper to wait for transaction confirmation
   async function waitForTransaction(txHash: string, description: string = "Transaction") {
@@ -543,12 +550,12 @@ export default function OrganizerPage() {
       });
 
       // 4) Add candidates if any
-       if (newCandidates.length > 0) {
+      if (newCandidates.length > 0) {
         if (!createdElection.id) {
           throw new Error("Created election ID is missing, cannot add candidates.");
         }
         setToast(`Adding ${newCandidates.length} candidate(s) to blockchain...`);
-        
+
         // Prepare arrays for batch function
         const names = newCandidates.map(c => c.name);
         const images = newCandidates.map(c => c.image || "");
@@ -748,25 +755,6 @@ export default function OrganizerPage() {
     }
   }
 
-  function getTimeRemaining(endsAt: string | null): string {
-    if (!endsAt) return "No end date";
-    const end = new Date(endsAt);
-    const now = new Date();
-    if (end < now) return "Ended";
-    const diff = end.getTime() - now.getTime();
-    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-
-    if (days > 0) {
-      return `${days}d ${hours}h ${minutes}m remaining`;
-    } else if (hours > 0) {
-      return `${hours}h ${minutes}m remaining`;
-    } else {
-      return `${minutes}m remaining`;
-    }
-  }
-
   function isElectionActive(election: Election): boolean {
     const now = new Date();
     const nowTime = now.getTime();
@@ -884,16 +872,24 @@ export default function OrganizerPage() {
             setActiveTab("dashboard");
             setSelectedElection(null);
           }}
-          className={`px-4 py-2 text-sm font-medium transition ${activeTab === "dashboard"
+          className={`px-4 py-2 text-sm font-medium transition-all relative ${activeTab === "dashboard"
             ? "border-b-2 border-indigo-600 text-indigo-400"
             : "text-slate-400 hover:text-white"
             }`}
         >
           My Elections
+          {elections.length > 0 && (
+            <span className={`ml-2 rounded-full px-2 py-0.5 text-xs font-semibold ${activeTab === "dashboard"
+                ? "bg-indigo-500/20 text-indigo-300"
+                : "bg-slate-700/50 text-slate-400"
+              }`}>
+              {elections.length}
+            </span>
+          )}
         </button>
         <button
           onClick={() => setActiveTab("create")}
-          className={`px-4 py-2 text-sm font-medium transition ${activeTab === "create"
+          className={`px-4 py-2 text-sm font-medium transition-all ${activeTab === "create"
             ? "border-b-2 border-indigo-600 text-indigo-400"
             : "text-slate-400 hover:text-white"
             }`}
@@ -905,7 +901,7 @@ export default function OrganizerPage() {
             setActiveTab("invite");
             setSelectedElectionForInvite(null);
           }}
-          className={`px-4 py-2 text-sm font-medium transition ${activeTab === "invite"
+          className={`px-4 py-2 text-sm font-medium transition-all ${activeTab === "invite"
             ? "border-b-2 border-indigo-600 text-indigo-400"
             : "text-slate-400 hover:text-white"
             }`}
@@ -918,47 +914,132 @@ export default function OrganizerPage() {
       {activeTab === "dashboard" && (
         <div className="space-y-6">
           {elections.length === 0 ? (
-            <div className="rounded-2xl border border-white/10 bg-white/5 p-12 text-center">
-              <p className="text-slate-400">No elections yet. Create your first one!</p>
+            <div className="rounded-2xl border border-dashed border-white/20 bg-white/5 p-12 text-center">
+              <div className="mx-auto h-20 w-20 text-slate-600 mb-4">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+              </div>
+              <p className="text-slate-300 font-medium mb-1">No elections yet</p>
+              <p className="text-sm text-slate-400 mb-4">Create your first election to get started</p>
+              <button
+                onClick={() => setActiveTab("create")}
+                className="rounded-lg bg-indigo-600 px-6 py-2.5 text-sm font-semibold text-white transition-all hover:bg-indigo-500 hover:scale-105 shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/30"
+              >
+                Create Election
+              </button>
             </div>
           ) : (
             <>
+              {/* Statistics Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="glass rounded-2xl p-6 border border-indigo-500/20 bg-gradient-to-br from-indigo-500/5 to-transparent">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-slate-400 mb-1">Total Elections</p>
+                      <p className="text-4xl font-bold text-indigo-400">{elections.length}</p>
+                      <p className="text-xs text-slate-500 mt-2">All time</p>
+                    </div>
+                    <div className="h-12 w-12 rounded-full bg-indigo-500/20 flex items-center justify-center">
+                      <svg className="h-6 w-6 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="glass rounded-2xl p-6 border border-green-500/20 bg-gradient-to-br from-green-500/5 to-transparent">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-slate-400 mb-1">Active Elections</p>
+                      <p className="text-4xl font-bold text-green-400">{activeElections.length}</p>
+                      <p className="text-xs text-slate-500 mt-2">Currently running</p>
+                    </div>
+                    <div className="h-12 w-12 rounded-full bg-green-500/20 flex items-center justify-center">
+                      <svg className="h-6 w-6 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="glass rounded-2xl p-6 border border-slate-500/20 bg-gradient-to-br from-slate-500/5 to-transparent">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-slate-400 mb-1">Ended Elections</p>
+                      <p className="text-4xl font-bold text-slate-300">{endedElections.length}</p>
+                      <p className="text-xs text-slate-500 mt-2">View results</p>
+                    </div>
+                    <div className="h-12 w-12 rounded-full bg-slate-500/20 flex items-center justify-center">
+                      <svg className="h-6 w-6 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                      </svg>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               {/* Active Elections */}
               {activeElections.length > 0 && (
                 <div>
-                  <h2 className="text-xl font-semibold text-indigo-400 mb-4">Active Elections</h2>
+                  <h2 className="text-xl font-semibold text-indigo-400 mb-4 flex items-center gap-2">
+                    Active Elections
+                    <span className="rounded-full bg-green-500/20 border border-green-500/30 px-2.5 py-0.5 text-xs font-medium text-green-300">
+                      {activeElections.length}
+                    </span>
+                  </h2>
                   <div className="grid gap-4 md:grid-cols-2">
-                    {activeElections.map((election) => (
-                      <div
-                        key={election.id}
-                        className={`rounded-2xl border-2 p-6 shadow-sm cursor-pointer transition ${selectedElection?.id === election.id
-                          ? "border-indigo-500 bg-indigo-500/10"
-                          : "border-white/10 bg-white/5 hover:shadow-md"
-                          }`}
-                        onClick={() => openDetailsModal(election)}
-                      >
-                        <div className="flex items-start justify-between">
-                          <div>
-                            <h3 className="text-lg font-semibold text-white">{election.name}</h3>
-                            <p className="mt-1 text-sm text-slate-400">
-                              {getTimeRemaining(election.ends_at)}
-                            </p>
-                            {election.starts_at && (
-                              <p className="mt-1 text-xs text-slate-400">
-                                Started: {new Date(election.starts_at).toLocaleString(undefined, {
-                                  dateStyle: 'short',
-                                  timeStyle: 'short',
+                    {activeElections.map((election) => {
+                      const endingSoon = election.ends_at && (() => {
+                        const endDate = new Date(election.ends_at);
+                        const now = new Date();
+                        const hoursUntilEnd = (endDate.getTime() - now.getTime()) / (1000 * 60 * 60);
+                        return hoursUntilEnd > 0 && hoursUntilEnd <= 24;
+                      })();
+
+                      return (
+                        <div
+                          key={election.id}
+                          className={`rounded-2xl border-2 p-6 shadow-sm cursor-pointer transition-all duration-200 ${selectedElection?.id === election.id
+                              ? "border-indigo-500 bg-indigo-500/10 shadow-indigo-500/20"
+                              : "border-white/10 bg-white/5 hover:shadow-lg hover:shadow-indigo-500/10 hover:border-indigo-500/30 hover:scale-[1.02]"
+                            }`}
+                          onClick={() => openDetailsModal(election)}
+                        >
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-1">
+                                <h3 className="text-lg font-semibold text-white">{election.name}</h3>
+                                {endingSoon && (
+                                  <span className="rounded-full bg-orange-500/20 border border-orange-500/30 px-2 py-0.5 text-xs font-medium text-orange-300 animate-pulse">
+                                    Ending Soon
+                                  </span>
+                                )}
+                              </div>
+                              <p className="mt-1 text-sm text-slate-400">
+                                Ends: {election.ends_at ? new Date(election.ends_at).toLocaleString(undefined, {
+                                  dateStyle: "short",
+                                  timeStyle: "short",
                                   timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone
-                                })}
+                                }) : "Not set"}
                               </p>
-                            )}
+                              {election.starts_at && (
+                                <p className="mt-1 text-xs text-slate-500">
+                                  Started: {new Date(election.starts_at).toLocaleString(undefined, {
+                                    dateStyle: 'short',
+                                    timeStyle: 'short',
+                                    timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone
+                                  })}
+                                </p>
+                              )}
+                            </div>
+                            <span className="ml-4 rounded-full bg-green-500/10 border border-green-500/20 px-3 py-1 text-xs font-medium text-green-400 shadow-[0_0_10px_rgba(34,197,94,0.1)]">
+                              Active
+                            </span>
                           </div>
-                          <span className="rounded-full bg-green-100 px-3 py-1 text-xs font-medium text-green-800">
-                            Active
-                          </span>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -966,19 +1047,24 @@ export default function OrganizerPage() {
               {/* Pending Elections */}
               {pendingElections.length > 0 && (
                 <div>
-                  <h2 className="text-xl font-semibold text-white mb-4">Pending Elections</h2>
+                  <h2 className="text-xl font-semibold text-white mb-4 flex items-center gap-2">
+                    Pending Elections
+                    <span className="rounded-full bg-amber-500/20 border border-amber-500/30 px-2.5 py-0.5 text-xs font-medium text-amber-300">
+                      {pendingElections.length}
+                    </span>
+                  </h2>
                   <div className="grid gap-4 md:grid-cols-2">
                     {pendingElections.map((election) => (
                       <div
                         key={election.id}
-                        className={`rounded-2xl border-2 p-6 shadow-sm cursor-pointer transition ${selectedElection?.id === election.id
-                          ? "border-indigo-500 bg-indigo-500/10"
-                          : "border-white/10 bg-white/5 hover:shadow-md"
+                        className={`rounded-2xl border-2 p-6 shadow-sm cursor-pointer transition-all duration-200 ${selectedElection?.id === election.id
+                            ? "border-indigo-500 bg-indigo-500/10 shadow-indigo-500/20"
+                            : "border-white/10 bg-white/5 hover:shadow-lg hover:shadow-amber-500/10 hover:border-amber-500/30 hover:scale-[1.02]"
                           }`}
                         onClick={() => openDetailsModal(election)}
                       >
                         <div className="flex items-start justify-between">
-                          <div>
+                          <div className="flex-1">
                             <h3 className="text-lg font-semibold text-white">{election.name}</h3>
                             <p className="mt-1 text-sm text-slate-400">
                               {election.starts_at
@@ -990,7 +1076,7 @@ export default function OrganizerPage() {
                                 : "No start date"}
                             </p>
                             {election.ends_at && (
-                              <p className="mt-1 text-xs text-slate-400">
+                              <p className="mt-1 text-xs text-slate-500">
                                 Ends: {new Date(election.ends_at).toLocaleString(undefined, {
                                   dateStyle: 'short',
                                   timeStyle: 'short',
@@ -999,7 +1085,7 @@ export default function OrganizerPage() {
                               </p>
                             )}
                           </div>
-                          <span className="rounded-full bg-yellow-100 px-3 py-1 text-xs font-medium text-yellow-800">
+                          <span className="ml-4 rounded-full bg-amber-500/10 border border-amber-500/20 px-3 py-1 text-xs font-medium text-amber-400 shadow-[0_0_10px_rgba(245,158,11,0.1)]">
                             Pending
                           </span>
                         </div>
@@ -1012,14 +1098,19 @@ export default function OrganizerPage() {
               {/* Ended Elections */}
               {endedElections.length > 0 && (
                 <div>
-                  <h2 className="text-xl font-semibold text-indigo-400 mb-4">Ended Elections</h2>
+                  <h2 className="text-xl font-semibold text-indigo-400 mb-4 flex items-center gap-2">
+                    Ended Elections
+                    <span className="rounded-full bg-slate-500/20 border border-slate-500/30 px-2.5 py-0.5 text-xs font-medium text-slate-300">
+                      {endedElections.length}
+                    </span>
+                  </h2>
                   <div className="grid gap-4 md:grid-cols-2">
                     {endedElections.map((election) => (
                       <div
                         key={election.id}
-                        className={`rounded-2xl border-2 p-6 shadow-sm cursor-pointer transition ${selectedElection?.id === election.id
-                          ? "border-indigo-500 bg-indigo-500/10"
-                          : "border-white/10 bg-white/5 hover:shadow-md"
+                        className={`rounded-2xl border-2 p-6 shadow-sm cursor-pointer transition-all duration-200 ${selectedElection?.id === election.id
+                            ? "border-indigo-500 bg-indigo-500/10 shadow-indigo-500/20"
+                            : "border-white/10 bg-white/5 hover:shadow-lg hover:shadow-slate-500/10 hover:border-slate-500/30 hover:scale-[1.02]"
                           }`}
                         onClick={() => openDetailsModal(election)}
                       >
@@ -1045,7 +1136,7 @@ export default function OrganizerPage() {
                               e.stopPropagation();
                               window.location.href = `/results/${election.id}`;
                             }}
-                            className="w-full rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-green-500 flex items-center justify-center gap-2"
+                            className="w-full rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white transition-all hover:bg-green-500 hover:scale-[1.02] hover:shadow-lg hover:shadow-green-500/30 flex items-center justify-center gap-2"
                           >
                             📊 View Results
                           </button>
@@ -1179,59 +1270,94 @@ export default function OrganizerPage() {
 
       {/* Create Tab */}
       {activeTab === "create" && (
-        <div className="rounded-2xl border border-white/10 bg-white/5 p-6 shadow-sm">
-          <h3 className="text-lg font-semibold text-white mb-4">Create New Election</h3>
-          <div className="space-y-4">
-            <label className="block text-sm font-medium text-slate-300">
-              Election Name
+        <div className="glass rounded-2xl border border-white/10 p-6">
+          <div className="mb-6">
+            <h3 className="text-xl font-semibold text-white mb-2">Create New Election</h3>
+            <p className="text-sm text-slate-400">Set up a new voting election with candidates and dates</p>
+          </div>
+          <div className="space-y-5">
+            <div>
+              <label className="block text-sm font-medium text-white mb-2">
+                Election Name <span className="text-red-400">*</span>
+              </label>
               <input
-                className="mt-1 w-full rounded-lg border border-white/20 px-3 py-2 text-sm text-white placeholder:text-slate-400"
+                className="w-full rounded-lg border border-white/20 bg-white/5 px-4 py-2.5 text-sm text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition"
                 value={electionName}
                 onChange={(e) => setElectionName(e.target.value)}
                 placeholder="e.g. Board Election 2025"
+                required
               />
-            </label>
-            <div className="grid grid-cols-2 gap-4">
-              <label className="block text-sm font-medium text-slate-300">
-                Starts At
+              {!electionName.trim() && (
+                <p className="mt-1 text-xs text-red-400">Election name is required</p>
+              )}
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-white mb-2">
+                  Starts At
+                  <span className="text-xs text-slate-400 ml-2">(optional)</span>
+                </label>
                 <input
                   type="datetime-local"
-                  className="mt-1 w-full rounded-lg border border-white/20 px-3 py-2 text-sm text-white"
+                  className="w-full rounded-lg border border-white/20 bg-white/5 px-4 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition"
                   value={startsAt}
                   onChange={(e) => setStartsAt(e.target.value)}
                 />
-              </label>
-              <label className="block text-sm font-medium text-slate-300">
-                Ends At
+                <p className="mt-1 text-xs text-slate-500">Leave empty to start immediately</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-white mb-2">
+                  Ends At
+                  <span className="text-xs text-slate-400 ml-2">(optional)</span>
+                </label>
                 <input
                   type="datetime-local"
-                  className="mt-1 w-full rounded-lg border border-white/20 px-3 py-2 text-sm text-white"
+                  className="w-full rounded-lg border border-white/20 bg-white/5 px-4 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition"
                   value={endsAt}
                   onChange={(e) => setEndsAt(e.target.value)}
                 />
-              </label>
+                <p className="mt-1 text-xs text-slate-500">Leave empty for no end date</p>
+              </div>
             </div>
+            {(startsAt || endsAt) && (
+              <div className="rounded-lg bg-blue-500/10 border border-blue-500/20 p-3">
+                <p className="text-xs text-blue-300 flex items-start gap-2">
+                  <svg className="h-4 w-4 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span>
+                    {startsAt && endsAt && new Date(endsAt) < new Date(startsAt) && (
+                      <span className="text-red-400 font-semibold">⚠️ End date must be after start date</span>
+                    )}
+                    {startsAt && new Date(startsAt) < new Date() && (
+                      <span className="text-amber-400 font-semibold">⚠️ Start date is in the past</span>
+                    )}
+                    {!startsAt || !endsAt || (new Date(endsAt) >= new Date(startsAt)) && new Date(startsAt) >= new Date() && (
+                      <span>Election timeline looks good!</span>
+                    )}
+                  </span>
+                </p>
+              </div>
+            )}
 
             {/* Public/Private Selection - Improved clarity */}
             <div className="pt-4 border-t border-white/10">
               <h4 className="text-sm font-semibold text-white mb-3">Results Visibility</h4>
               <p className="text-xs text-slate-400 mb-4">Choose who can see the election results after voting ends</p>
-              
+
               <div className="grid grid-cols-2 gap-3">
                 {/* Private Option */}
                 <button
                   type="button"
                   onClick={() => setIsPublic(false)}
-                  className={`relative rounded-xl border-2 p-4 text-left transition-all ${
-                    !isPublic
+                  className={`relative rounded-xl border-2 p-4 text-left transition-all ${!isPublic
                       ? "border-purple-500 bg-purple-500/10"
                       : "border-white/10 bg-white/5 hover:border-white/20"
-                  }`}
+                    }`}
                 >
                   <div className="flex items-start gap-3">
-                    <div className={`mt-0.5 w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-                      !isPublic ? "border-purple-500" : "border-slate-500"
-                    }`}>
+                    <div className={`mt-0.5 w-5 h-5 rounded-full border-2 flex items-center justify-center ${!isPublic ? "border-purple-500" : "border-slate-500"
+                      }`}>
                       {!isPublic && (
                         <div className="w-3 h-3 rounded-full bg-purple-500"></div>
                       )}
@@ -1254,16 +1380,14 @@ export default function OrganizerPage() {
                 <button
                   type="button"
                   onClick={() => setIsPublic(true)}
-                  className={`relative rounded-xl border-2 p-4 text-left transition-all ${
-                    isPublic
+                  className={`relative rounded-xl border-2 p-4 text-left transition-all ${isPublic
                       ? "border-green-500 bg-green-500/10"
                       : "border-white/10 bg-white/5 hover:border-white/20"
-                  }`}
+                    }`}
                 >
                   <div className="flex items-start gap-3">
-                    <div className={`mt-0.5 w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-                      isPublic ? "border-green-500" : "border-slate-500"
-                    }`}>
+                    <div className={`mt-0.5 w-5 h-5 rounded-full border-2 flex items-center justify-center ${isPublic ? "border-green-500" : "border-slate-500"
+                      }`}>
                       {isPublic && (
                         <div className="w-3 h-3 rounded-full bg-green-500"></div>
                       )}
@@ -1282,18 +1406,17 @@ export default function OrganizerPage() {
                   </div>
                 </button>
               </div>
-              
+
               {/* Additional info based on selection */}
-              <div className={`mt-3 rounded-lg p-3 border ${
-                isPublic 
-                  ? "bg-green-500/5 border-green-500/20" 
+              <div className={`mt-3 rounded-lg p-3 border ${isPublic
+                  ? "bg-green-500/5 border-green-500/20"
                   : "bg-purple-500/5 border-purple-500/20"
-              }`}>
+                }`}>
                 <p className="text-xs text-slate-300 flex items-start gap-2">
                   <span className="text-base">{isPublic ? "ℹ️" : "🔐"}</span>
                   <span>
-                    {isPublic 
-                      ? "This election will appear in the public elections page and anyone can view results" 
+                    {isPublic
+                      ? "This election will appear in the public elections page and anyone can view results"
                       : "This election is private. Only invited voters who participated and you can see results"}
                   </span>
                 </p>
@@ -1302,80 +1425,119 @@ export default function OrganizerPage() {
 
             {/* Candidates Section */}
             <div className="space-y-3 pt-4 border-t border-white/10">
-              <h4 className="text-sm font-semibold text-white">Candidates</h4>
+              <div className="flex items-center justify-between">
+                <h4 className="text-sm font-semibold text-white flex items-center gap-2">
+                  <svg className="h-4 w-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                  </svg>
+                  Candidates
+                </h4>
+                {newCandidates.length > 0 && (
+                  <span className="text-xs text-slate-400">
+                    {newCandidates.length} added
+                  </span>
+                )}
+              </div>
               <div className="flex gap-2">
                 <input
-                  className="flex-1 rounded-lg border border-white/20 px-3 py-2 text-sm text-white placeholder:text-slate-400"
+                  className="flex-1 rounded-lg border border-white/20 bg-white/5 px-4 py-2.5 text-sm text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition"
                   placeholder="Candidate name"
                   value={candidateName}
                   onChange={(e) => setCandidateName(e.target.value)}
-                  onKeyPress={(e) => e.key === "Enter" && addCandidateToList()}
+                  onKeyPress={(e) => e.key === "Enter" && candidateName.trim() && addCandidateToList()}
                 />
                 <input
-                  className="flex-1 rounded-lg border border-white/20 px-3 py-2 text-sm text-white placeholder:text-slate-400"
+                  className="flex-1 rounded-lg border border-white/20 bg-white/5 px-4 py-2.5 text-sm text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition"
                   placeholder="Image URL (optional)"
                   value={candidateImage}
                   onChange={(e) => setCandidateImage(e.target.value)}
-                  onKeyPress={(e) => e.key === "Enter" && addCandidateToList()}
+                  onKeyPress={(e) => e.key === "Enter" && candidateName.trim() && addCandidateToList()}
                 />
                 <button
                   type="button"
-                  className="rounded-lg bg-slate-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/50"
+                  className="rounded-lg bg-indigo-600 px-6 py-2.5 text-sm font-semibold text-white transition-all hover:bg-indigo-500 hover:scale-105 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:scale-100 shadow-lg shadow-indigo-500/20"
                   onClick={addCandidateToList}
+                  disabled={!candidateName.trim()}
                 >
                   Add
                 </button>
               </div>
 
               {newCandidates.length > 0 && (
-                <div className="mt-3 space-y-2">
-                  <p className="text-xs text-slate-400 font-medium">
-                    {newCandidates.length} candidate{newCandidates.length !== 1 ? "s" : ""} added:
+                <div className="mt-4 space-y-2">
+                  <p className="text-xs text-slate-400 font-medium mb-2">
+                    Preview ({newCandidates.length} candidate{newCandidates.length !== 1 ? "s" : ""}):
                   </p>
-                  {newCandidates.map((candidate, index) => (
-                    <div
-                      key={index}
-                      className="flex items-center justify-between rounded-lg bg-white/5 px-3 py-2"
-                    >
-                      <div className="flex items-center gap-3">
-                        {candidate.image && (
-                          <img
-                            src={candidate.image}
-                            alt={candidate.name}
-                            className="w-8 h-8 rounded-full object-cover"
-                            onError={(e) => {
-                              (e.target as HTMLImageElement).style.display = "none";
-                            }}
-                          />
-                        )}
-                        <span className="text-sm font-medium text-white">{candidate.name}</span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => removeCandidateFromList(index)}
-                        className="text-xs text-red-600 hover:text-red-700"
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {newCandidates.map((candidate, index) => (
+                      <div
+                        key={index}
+                        className="flex items-center justify-between rounded-lg bg-white/5 border border-white/10 px-3 py-2.5 hover:bg-white/10 transition"
                       >
-                        Remove
-                      </button>
-                    </div>
-                  ))}
+                        <div className="flex items-center gap-3 flex-1">
+                          {candidate.image ? (
+                            <img
+                              src={candidate.image}
+                              alt={candidate.name}
+                              className="w-10 h-10 rounded-full object-cover border border-white/20"
+                              onError={(e) => {
+                                (e.target as HTMLImageElement).style.display = "none";
+                              }}
+                            />
+                          ) : (
+                            <div className="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center text-slate-400 text-xs font-semibold">
+                              {candidate.name.charAt(0).toUpperCase()}
+                            </div>
+                          )}
+                          <span className="text-sm font-medium text-white">{candidate.name}</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => removeCandidateFromList(index)}
+                          className="text-xs text-red-400 hover:text-red-300 transition p-1 hover:bg-red-500/10 rounded"
+                          title="Remove candidate"
+                        >
+                          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
-              <p className="text-xs text-slate-400">
-                Add candidates now or add them later. At least one candidate is recommended.
-              </p>
+              <div className="rounded-lg bg-blue-500/10 border border-blue-500/20 p-3">
+                <p className="text-xs text-blue-300 flex items-start gap-2">
+                  <svg className="h-4 w-4 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span>You can add candidates now or add them later. At least one candidate is recommended before voting starts.</span>
+                </p>
+              </div>
             </div>
 
-            <button
-              className="w-full rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-500/100 disabled:opacity-60"
-              onClick={createElection}
-              disabled={busy}
-            >
-              {busy ? "Creating..." : "Create Election"}
-            </button>
-            <p className="text-xs text-slate-400">
-              IDs will be auto-generated. You can invite voters after creation.
-            </p>
+            <div className="pt-4 border-t border-white/10">
+              <button
+                className="w-full rounded-lg bg-indigo-600 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-indigo-500/20 transition-all hover:bg-indigo-500 hover:scale-[1.02] disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:scale-100"
+                onClick={createElection}
+                disabled={busy || !electionName.trim()}
+              >
+                {busy ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Creating Election...
+                  </span>
+                ) : (
+                  "Create Election"
+                )}
+              </button>
+              <p className="text-xs text-slate-400 text-center mt-3">
+                IDs will be auto-generated. You can invite voters after creation.
+              </p>
+            </div>
           </div>
         </div>
       )}
@@ -1385,10 +1547,23 @@ export default function OrganizerPage() {
         <div className="space-y-6">
           {!selectedElectionForInvite ? (
             <>
-              <h2 className="text-xl font-semibold text-indigo-400">Select an Election to Invite Voters</h2>
+              <h2 className="text-xl font-semibold text-indigo-400 mb-2">Select an Election to Invite Voters</h2>
+              <p className="text-sm text-slate-400 mb-6">Choose an active election to send invitations</p>
               {activeElections.length === 0 ? (
-                <div className="rounded-2xl border border-white/10 bg-white/5 p-12 text-center">
-                  <p className="text-slate-400">No active elections. Create one first!</p>
+                <div className="glass rounded-2xl border border-dashed border-white/20 p-12 text-center">
+                  <div className="mx-auto h-20 w-20 text-slate-600 mb-4">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                    </svg>
+                  </div>
+                  <p className="text-slate-300 font-medium mb-1">No active elections</p>
+                  <p className="text-sm text-slate-400 mb-4">Create an election first to invite voters</p>
+                  <button
+                    onClick={() => setActiveTab("create")}
+                    className="rounded-lg bg-indigo-600 px-6 py-2.5 text-sm font-semibold text-white transition-all hover:bg-indigo-500 hover:scale-105 shadow-lg shadow-indigo-500/20"
+                  >
+                    Create Election
+                  </button>
                 </div>
               ) : (
                 <div className="grid gap-4 md:grid-cols-2">
@@ -1396,16 +1571,20 @@ export default function OrganizerPage() {
                     <div
                       key={election.id}
                       onClick={() => openInviteModal(election)}
-                      className="rounded-2xl border border-white/10 bg-white/5 p-6 shadow-sm cursor-pointer transition hover:border-indigo-300 hover:shadow-md"
+                      className="glass rounded-2xl border border-white/10 p-6 cursor-pointer transition-all duration-200 hover:border-indigo-500/50 hover:shadow-lg hover:shadow-indigo-500/10 hover:scale-[1.02]"
                     >
                       <div className="flex items-start justify-between">
-                        <div>
-                          <h3 className="text-lg font-semibold text-white">{election.name}</h3>
-                          <p className="mt-1 text-sm text-slate-400">
-                            {getTimeRemaining(election.ends_at)}
+                        <div className="flex-1">
+                          <h3 className="text-lg font-semibold text-white mb-1">{election.name}</h3>
+                          <p className="text-sm text-slate-400">
+                            Ends: {election.ends_at ? new Date(election.ends_at).toLocaleString(undefined, {
+                              dateStyle: "short",
+                              timeStyle: "short",
+                              timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone
+                            }) : "Not set"}
                           </p>
                         </div>
-                        <span className="rounded-full bg-green-100 px-3 py-1 text-xs font-medium text-green-800">
+                        <span className="ml-4 rounded-full bg-green-500/10 border border-green-500/20 px-3 py-1 text-xs font-medium text-green-400">
                           Active
                         </span>
                       </div>
@@ -1416,13 +1595,24 @@ export default function OrganizerPage() {
             </>
           ) : (
             <>
-              <div className="flex items-center justify-between">
-                <h2 className="text-xl font-semibold text-white">
-                  Invite Voters: {selectedElectionForInvite.name}
-                </h2>
+              <div className="flex items-center justify-between flex-wrap gap-4">
+                <div className="flex-1">
+                  <h2 className="text-xl font-semibold text-white">
+                    Invite Voters: {selectedElectionForInvite.name}
+                  </h2>
+                  {selectedElectionForInvite.ends_at && (
+                    <p className="text-sm text-slate-400 mt-1">
+                      Ends: {new Date(selectedElectionForInvite.ends_at).toLocaleString(undefined, {
+                        dateStyle: "short",
+                        timeStyle: "short",
+                        timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone
+                      })}
+                    </p>
+                  )}
+                </div>
                 <button
                   onClick={() => setSelectedElectionForInvite(null)}
-                  className="text-sm text-slate-500 hover:text-slate-300"
+                  className="text-sm px-4 py-2 rounded-lg border border-white/20 bg-white/5 text-slate-300 hover:text-white hover:bg-white/10 transition"
                 >
                   Change Election
                 </button>
@@ -1482,7 +1672,7 @@ export default function OrganizerPage() {
                           onChange={(e) => setBulkEmails(e.target.value)}
                         />
                       </div>
-                      
+
                       {bulkResult && (
                         <div className="rounded-lg bg-indigo-500/10 border border-indigo-500/20 p-4 mb-4">
                           <h4 className="text-sm font-semibold text-indigo-300 mb-2">Results</h4>
@@ -1507,22 +1697,22 @@ export default function OrganizerPage() {
                         className="w-full rounded-lg bg-indigo-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-indigo-500/100 disabled:opacity-50 disabled:cursor-not-allowed"
                         onClick={async () => {
                           if (!bulkEmails.trim()) return;
-                          
+
                           setBusy(true);
                           setBulkResult(null);
-                          
+
                           // Parse emails
                           const emails = bulkEmails
                             .split(/[\s,]+/)
                             .map(e => e.trim())
                             .filter(e => e && e.includes("@"));
-                            
+
                           if (emails.length === 0) {
                             setToast("No valid emails found");
                             setBusy(false);
                             return;
                           }
-                          
+
                           try {
                             setToast(`Processing ${emails.length} emails...`);
                             const res = await fetch("/api/invitations/batch", {
@@ -1533,19 +1723,19 @@ export default function OrganizerPage() {
                                 emails
                               }),
                             });
-                            
+
                             const data = await res.json();
-                            
+
                             if (!res.ok) {
                               throw new Error(data.error || "Failed to send batch invites");
                             }
-                            
+
                             setBulkResult({
                               total: data.total,
                               inserted: data.inserted,
                               duplicates: data.duplicates
                             });
-                            
+
                             setToast(`Successfully sent ${data.inserted} invitations!`);
                             setBulkEmails(""); // Clear input on success
                             fetchInvitations(selectedElectionForInvite!.id); // Refresh list
@@ -1594,7 +1784,11 @@ export default function OrganizerPage() {
               <div className="rounded-lg bg-white/5 p-4">
                 <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Time Remaining</p>
                 <p className="mt-1 text-lg font-semibold text-white">
-                  {isElectionActive(modalElection) ? getTimeRemaining(modalElection.ends_at) : hasElectionEnded(modalElection) ? "Ended" : "Not started"}
+                  <CountdownTimer
+                    endsAt={modalElection.ends_at}
+                    startsAt={modalElection.starts_at}
+                    showSeconds={true}
+                  />
                 </p>
               </div>
               <div className="rounded-lg bg-white/5 p-4">
@@ -1854,7 +2048,7 @@ export default function OrganizerPage() {
                       onChange={(e) => setBulkEmails(e.target.value)}
                     />
                   </div>
-                  
+
                   {bulkResult && (
                     <div className="rounded-lg bg-indigo-500/10 border border-indigo-500/20 p-4">
                       <h4 className="text-sm font-semibold text-indigo-300 mb-2">Results</h4>
@@ -1879,22 +2073,22 @@ export default function OrganizerPage() {
                     className="w-full rounded-lg bg-indigo-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-indigo-500/100 disabled:opacity-50 disabled:cursor-not-allowed"
                     onClick={async () => {
                       if (!bulkEmails.trim()) return;
-                      
+
                       setBusy(true);
                       setBulkResult(null);
-                      
+
                       // Parse emails
                       const emails = bulkEmails
                         .split(/[\s,]+/)
                         .map(e => e.trim())
                         .filter(e => e && e.includes("@"));
-                        
+
                       if (emails.length === 0) {
                         setToast("No valid emails found");
                         setBusy(false);
                         return;
                       }
-                      
+
                       try {
                         setToast(`Processing ${emails.length} emails...`);
                         const res = await fetch("/api/invitations/batch", {
@@ -1905,19 +2099,19 @@ export default function OrganizerPage() {
                             emails
                           }),
                         });
-                        
+
                         const data = await res.json();
-                        
+
                         if (!res.ok) {
                           throw new Error(data.error || "Failed to send batch invites");
                         }
-                        
+
                         setBulkResult({
                           total: data.total,
                           inserted: data.inserted,
                           duplicates: data.duplicates
                         });
-                        
+
                         setToast(`Successfully sent ${data.inserted} invitations!`);
                         setBulkEmails(""); // Clear input on success
                         fetchInvitations(modalElection.id); // Refresh list

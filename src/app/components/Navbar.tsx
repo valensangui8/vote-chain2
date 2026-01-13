@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
 import { usePrivy } from "@privy-io/react-auth";
 import { Hexagon, Menu, X } from "lucide-react";
 import { useState, useEffect } from "react";
@@ -10,6 +11,8 @@ import { motion, AnimatePresence } from "framer-motion";
 
 export function Navbar() {
   const { authenticated, user, login, logout, ready } = usePrivy();
+  const pathname = usePathname();
+  const router = useRouter();
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
@@ -21,12 +24,40 @@ export function Navbar() {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
+  // Redirect to dashboard after login (only from public landing pages, not results)
+  useEffect(() => {
+    if (ready && authenticated) {
+      // Only redirect if we're on a public landing page (home, public-elections)
+      // Don't redirect from results pages (user wants to see results after login)
+      // Don't redirect if already on dashboard or authenticated pages (voter, organizer, admin)
+      const publicPages = ["/", "/public-elections"];
+      const authPages = ["/voter", "/organizer", "/admin", "/dashboard"];
+      const isResultsPage = pathname.startsWith("/results");
+      const isPublicLandingPage = publicPages.includes(pathname);
+      const isAuthPage = authPages.some(page => pathname.startsWith(page));
+      
+      if (isPublicLandingPage && !isAuthPage && !isResultsPage) {
+        router.push("/dashboard");
+      }
+    }
+  }, [ready, authenticated, pathname, router]);
+
 
   const scrollToSection = (id: string) => {
     const element = document.getElementById(id);
     if (element) {
       element.scrollIntoView({ behavior: "smooth" });
     }
+  };
+
+  const handleLogin = async () => {
+    await login();
+    // Navigation will be handled by the useEffect above
+  };
+
+  const handleLogout = async () => {
+    await logout();
+    router.push("/");
   };
 
   const navLinks = authenticated
@@ -72,8 +103,12 @@ export function Navbar() {
                 className="text-sm font-medium text-slate-400 hover:text-white transition-colors relative group"
                 onClick={(e) => {
                   if (link.href.startsWith("/#")) {
-                    e.preventDefault();
-                    scrollToSection(link.href.substring(2));
+                    // Only prevent default and scroll if we're already on the home page
+                    if (pathname === "/") {
+                      e.preventDefault();
+                      scrollToSection(link.href.substring(2));
+                    }
+                    // Otherwise, let the Link navigate normally to /#section
                   }
                 }}
               >
@@ -88,7 +123,7 @@ export function Navbar() {
             {!ready ? (
               <span className="text-xs text-slate-500 animate-pulse">Initializing...</span>
             ) : !authenticated ? (
-              <Button onClick={() => login()} variant="gradient" className="rounded-full">
+              <Button onClick={handleLogin} variant="gradient" className="rounded-full">
                 Login
               </Button>
             ) : (
@@ -101,7 +136,7 @@ export function Navbar() {
                       "User"}
                   </span>
                 </div>
-                <Button onClick={() => logout()} variant="outline" size="sm" className="rounded-full">
+                <Button onClick={handleLogout} variant="outline" size="sm" className="rounded-full">
                   Logout
                 </Button>
               </div>
@@ -135,18 +170,25 @@ export function Navbar() {
                   key={link.name}
                   href={link.href}
                   className="block text-base font-medium text-slate-300 hover:text-white hover:bg-white/5 px-3 py-2 rounded-md"
-                  onClick={() => setIsMobileMenuOpen(false)}
+                  onClick={(e) => {
+                    setIsMobileMenuOpen(false);
+                    // Handle hash links in mobile menu
+                    if (link.href.startsWith("/#") && pathname === "/") {
+                      e.preventDefault();
+                      scrollToSection(link.href.substring(2));
+                    }
+                  }}
                 >
                   {link.name}
                 </Link>
               ))}
               <div className="pt-4 border-t border-white/10">
                 {!authenticated ? (
-                  <Button onClick={() => login()} variant="gradient" className="w-full">
+                  <Button onClick={handleLogin} variant="gradient" className="w-full">
                     Login
                   </Button>
                 ) : (
-                  <Button onClick={() => logout()} variant="outline" className="w-full">
+                  <Button onClick={handleLogout} variant="outline" className="w-full">
                     Logout
                   </Button>
                 )}

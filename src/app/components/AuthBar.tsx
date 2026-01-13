@@ -1,9 +1,21 @@
 "use client";
 
 import { usePrivy } from "@privy-io/react-auth";
+import { useRouter } from "next/navigation";
 
 export function AuthBar() {
   const { authenticated, user, login, logout, ready } = usePrivy();
+  const router = useRouter();
+
+  const handleLogin = async () => {
+    await login();
+    router.push("/dashboard");
+  };
+
+  const handleLogout = async () => {
+    await logout();
+    router.push("/");
+  };
 
   if (!ready) {
     return (
@@ -18,7 +30,7 @@ export function AuthBar() {
       <div className="flex justify-end">
         <button
           type="button"
-          onClick={() => login()}
+          onClick={handleLogin}
           className="rounded-full bg-slate-900 px-4 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-slate-800"
         >
           Sign in with Privy
@@ -34,7 +46,7 @@ export function AuthBar() {
       </span>
       <button
         type="button"
-        onClick={() => logout()}
+        onClick={handleLogout}
         className="rounded-full border border-slate-300 px-3 py-1 font-semibold hover:border-slate-400"
       >
         Logout

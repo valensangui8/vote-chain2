@@ -1,11 +1,24 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { useRouter } from "next/navigation";
+import { usePrivy } from "@privy-io/react-auth";
 import { Button } from "@/app/components/ui/Button";
 import { Badge } from "@/app/components/ui/Badge";
 import { CheckCircle2, Shield, Zap, Lock, ChevronRight, MousePointer2 } from "lucide-react";
 
 export function HeroSection() {
+    const router = useRouter();
+    const { authenticated, login, ready } = usePrivy();
+
+    const handleLogin = async () => {
+        await login();
+    };
+
+    const handleDashboard = () => {
+        router.push("/dashboard");
+    };
+
     return (
         <section className="relative pt-32 pb-20 lg:pt-48 lg:pb-32 overflow-hidden">
             <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 relative z-10">
@@ -53,12 +66,29 @@ export function HeroSection() {
                         </div>
 
                         <div className="flex flex-wrap gap-4">
-                            <Button size="lg" variant="gradient" className="text-lg px-8 h-14 rounded-full shadow-lg shadow-violet-500/25">
-                                Get started <ChevronRight className="ml-2 h-5 w-5" />
-                            </Button>
-                            <Button size="lg" variant="outline" className="text-lg px-8 h-14 rounded-full">
-                                Watch demo
-                            </Button>
+                            {!ready ? (
+                                <Button size="lg" variant="gradient" className="text-lg px-8 h-14 rounded-full shadow-lg shadow-violet-500/25" disabled>
+                                    Initializing...
+                                </Button>
+                            ) : !authenticated ? (
+                                <Button
+                                    size="lg"
+                                    variant="gradient"
+                                    className="text-lg px-8 h-14 rounded-full shadow-lg shadow-violet-500/25"
+                                    onClick={handleLogin}
+                                >
+                                    Login <ChevronRight className="ml-2 h-5 w-5" />
+                                </Button>
+                            ) : (
+                                <Button
+                                    onClick={handleDashboard}
+                                    size="lg"
+                                    variant="gradient"
+                                    className="text-lg px-8 h-14 rounded-full shadow-lg shadow-violet-500/25"
+                                >
+                                    Go to dashboard <ChevronRight className="ml-2 h-5 w-5" />
+                                </Button>
+                            )}
                         </div>
                     </motion.div>
 

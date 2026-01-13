@@ -9,6 +9,7 @@ import { createIdentity, getCommitment, buildProof, createGroupFromCommitments }
 import { sendSmartWalletContractTx } from "@/lib/privy";
 import { contracts } from "@/lib/ethers";
 import { ethers } from "ethers";
+import { CountdownTimer } from "@/app/components/CountdownTimer";
 
 type Candidate = {
   id: string;
@@ -428,7 +429,7 @@ export default function ElectionDetailPage() {
 
   if (!invitation) {
     return (
-      <div className="mx-auto flex w-full max-w-4xl flex-col gap-8 py-10">
+      <div className="mx-auto flex w-full max-w-4xl flex-col gap-8 py-10 mt-20">
         <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center">
           <p className="text-slate-600">Loading election...</p>
         </div>
@@ -509,68 +510,134 @@ export default function ElectionDetailPage() {
         </div>
       )}
 
-      <header className="space-y-2">
-        <p className="text-sm font-semibold uppercase tracking-[0.2em] text-indigo-500">Election</p>
-        <h1 className="text-3xl font-bold text-slate-600">{election.name}</h1>
-        <p className="text-sm text-slate-400">
-          {hasVoted ? "You can view the candidates below" : "Select a candidate to cast your anonymous vote"}
-        </p>
+      <header className="space-y-3">
+        <div className="flex items-start justify-between">
+          <div className="flex-1">
+            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-indigo-500">Election</p>
+            <h1 className="text-3xl font-bold text-white mt-2">{election.name}</h1>
+            <p className="text-sm text-slate-400 mt-2">
+              {hasVoted ? "You can view the candidates below" : "Select a candidate to cast your anonymous vote"}
+            </p>
+          </div>
+          {election.ends_at && (
+            <div className="glass rounded-xl p-4 border border-indigo-500/20 min-w-[180px]">
+              <p className="text-xs text-slate-400 mb-1">Time Remaining</p>
+              <CountdownTimer 
+                endsAt={election.ends_at}
+                startsAt={election.starts_at}
+                className="text-lg font-semibold"
+                showSeconds={true}
+              />
+            </div>
+          )}
+        </div>
       </header>
 
       {candidates.length === 0 ? (
-        <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center">
-          <p className="text-slate-600">No candidates available for this election.</p>
+        <div className="glass rounded-2xl border border-white/10 p-12 text-center">
+          <div className="mx-auto h-16 w-16 text-slate-600 mb-4">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+            </svg>
+          </div>
+          <p className="text-slate-300 font-medium mb-1">No candidates available</p>
+          <p className="text-sm text-slate-400">The organizer hasn't added any candidates yet.</p>
         </div>
       ) : (
         <>
+          <p className="text-sm text-slate-400 mb-4">
+            {hasVoted ? "You've already voted. Candidates are shown below." : "Select a candidate to cast your vote"}
+          </p>
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {candidates.map((candidate, index) => (
               <button
                 key={candidate.id}
-                onClick={() => setSelectedCandidate(candidate)}
+                onClick={() => !hasVoted && !voting && setSelectedCandidate(candidate)}
                 disabled={voting || hasVoted}
-                className={`rounded-2xl border-2 p-6 text-left transition ${selectedCandidate?.id === candidate.id
-                  ? "border-indigo-500 bg-indigo-50"
-                  : "border-slate-200 bg-white hover:border-indigo-300 hover:shadow-md"
-                  } ${voting ? "opacity-60 cursor-not-allowed" : "cursor-pointer"}`}
+                className={`glass rounded-2xl border-2 p-6 text-left transition-all duration-200 ${
+                  selectedCandidate?.id === candidate.id
+                    ? "border-indigo-500 bg-indigo-500/10 shadow-lg shadow-indigo-500/20 scale-[1.02]"
+                    : "border-white/10 bg-white/5 hover:border-indigo-500/50 hover:shadow-lg hover:shadow-indigo-500/10 hover:scale-[1.02]"
+                } ${voting || hasVoted ? "opacity-60 cursor-not-allowed" : "cursor-pointer"}`}
               >
                 {candidate.image_url ? (
                   <img
                     src={candidate.image_url}
                     alt={candidate.name}
-                    className="mb-4 h-32 w-full rounded-lg object-cover"
+                    className="mb-4 h-32 w-full rounded-lg object-cover border border-white/10"
                   />
                 ) : (
-                  <div className="mb-4 flex h-32 w-full items-center justify-center rounded-lg bg-slate-100 text-slate-500">
-                    No image
+                  <div className="mb-4 flex h-32 w-full items-center justify-center rounded-lg bg-slate-700/50 border border-white/10 text-slate-500">
+                    <svg className="h-12 w-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
                   </div>
                 )}
-                <h3 className="text-lg font-semibold text-slate-900">{candidate.name}</h3>
+                <h3 className="text-lg font-semibold text-white">{candidate.name}</h3>
                 {selectedCandidate?.id === candidate.id && (
-                  <p className="mt-2 text-sm text-indigo-600">Selected ✓</p>
+                  <p className="mt-2 text-sm text-indigo-400 flex items-center gap-1">
+                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    Selected
+                  </p>
                 )}
               </button>
             ))}
           </div>
 
-          {selectedCandidate && (
-            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          {selectedCandidate && !hasVoted && (
+            <div className="glass rounded-2xl border border-indigo-500/30 bg-indigo-500/5 p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-slate-600">Selected candidate:</p>
-                  <p className="text-lg font-semibold text-slate-900">{selectedCandidate.name}</p>
+                  <p className="text-sm text-slate-400 mb-1">Selected candidate:</p>
+                  <p className="text-lg font-semibold text-white">{selectedCandidate.name}</p>
                 </div>
                 <button
                   onClick={submitVote}
                   disabled={voting || hasVoted}
-                  className="rounded-lg bg-indigo-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-indigo-500 disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="rounded-lg bg-indigo-600 px-8 py-3 text-sm font-semibold text-white transition-all hover:bg-indigo-500 hover:scale-105 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:scale-100 shadow-lg shadow-indigo-500/20"
                 >
-                  {hasVoted ? "Already Voted ✓" : voting ? "Submitting..." : "Submit Vote"}
+                  {hasVoted ? (
+                    "Already Voted ✓"
+                  ) : voting ? (
+                    <span className="flex items-center gap-2">
+                      <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Submitting Vote...
+                    </span>
+                  ) : (
+                    "Submit Vote"
+                  )}
                 </button>
               </div>
               {proofStatus && (
-                <div className="mt-4 rounded-lg bg-indigo-50 px-4 py-3 text-sm text-indigo-900">
-                  {proofStatus}
+                <div className={`mt-4 rounded-lg px-4 py-3 text-sm ${
+                  proofStatus.includes("✓") || proofStatus.includes("successfully")
+                    ? "bg-green-500/10 border border-green-500/20 text-green-300"
+                    : proofStatus.includes("Failed") || proofStatus.includes("Error")
+                    ? "bg-red-500/10 border border-red-500/20 text-red-300"
+                    : "bg-indigo-500/10 border border-indigo-500/20 text-indigo-300"
+                }`}>
+                  <div className="flex items-start gap-2">
+                    {proofStatus.includes("✓") || proofStatus.includes("successfully") ? (
+                      <svg className="h-5 w-5 text-green-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                    ) : proofStatus.includes("Failed") || proofStatus.includes("Error") ? (
+                      <svg className="h-5 w-5 text-red-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    ) : (
+                      <svg className="animate-spin h-5 w-5 text-indigo-400 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                    )}
+                    <span>{proofStatus}</span>
+                  </div>
                 </div>
               )}
             </div>

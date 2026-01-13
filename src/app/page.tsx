@@ -22,6 +22,27 @@ export default function Home() {
     }
   }, [ready, authenticated, router]);
 
+  // Handle hash navigation - scroll to section when hash is in URL
+  useEffect(() => {
+    const handleHashScroll = () => {
+      if (window.location.hash) {
+        const hash = window.location.hash.substring(1); // Remove the #
+        const element = document.getElementById(hash);
+        if (element) {
+          // Small delay to ensure DOM is ready
+          setTimeout(() => {
+            element.scrollIntoView({ behavior: "smooth" });
+          }, 100);
+        }
+      }
+    };
+
+    // Run on mount and when hash changes
+    handleHashScroll();
+    window.addEventListener("hashchange", handleHashScroll);
+    return () => window.removeEventListener("hashchange", handleHashScroll);
+  }, []);
+
   // If redirecting, we can show null or a loading spinner, or just the landing page 
   // briefly before redirect. Showing landing page is safer to avoid flicker of empty screen 
   // if redirect is slow, although a spinner is often preferred. 

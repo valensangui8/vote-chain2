@@ -9,6 +9,7 @@ import { createIdentity, getCommitment } from "@/lib/zk";
 import { sendSmartWalletContractTx } from "@/lib/privy";
 import { contracts } from "@/lib/ethers";
 import { ethers } from "ethers";
+import { CountdownTimer } from "@/app/components/CountdownTimer";
 
 type Invitation = {
   id: string;
@@ -38,6 +39,8 @@ export default function VoterPage() {
   const [identity, setIdentity] = useState<any>(null);
   const [accepting, setAccepting] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [loadingInvitations, setLoadingInvitations] = useState(true);
+  const [copiedCommitment, setCopiedCommitment] = useState(false);
 
   // Helper to wait for transaction confirmation
   async function waitForTransaction(txHash: string, description: string = "Transaction") {
@@ -139,10 +142,12 @@ export default function VoterPage() {
   async function loadInvitations() {
     if (!user?.email?.address) {
       console.log("No email address found in user object", user);
+      setLoadingInvitations(false);
       return;
     }
 
     try {
+      setLoadingInvitations(true);
       const email = user.email.address.toLowerCase().trim();
       console.log("Loading invitations for email:", email);
 
@@ -157,7 +162,33 @@ export default function VoterPage() {
       }
     } catch (err) {
       console.error("Failed to load invitations", err);
+    } finally {
+      setLoadingInvitations(false);
     }
+  }
+
+  function copyCommitment() {
+    if (commitment) {
+      navigator.clipboard.writeText(commitment);
+      setCopiedCommitment(true);
+      setTimeout(() => setCopiedCommitment(false), 2000);
+      setToast("Commitment copied to clipboard!");
+      setTimeout(() => setToast(null), 3000);
+    }
+  }
+
+  function isEndingSoon(election: Invitation["elections"]): boolean {
+    if (!election.ends_at) return false;
+    const endDate = new Date(election.ends_at);
+    const now = new Date();
+    const hoursUntilEnd = (endDate.getTime() - now.getTime()) / (1000 * 60 * 60);
+    return hoursUntilEnd > 0 && hoursUntilEnd <= 24; // Less than 24 hours
+  }
+
+  function isNewInvitation(invitation: Invitation): boolean {
+    // Since we don't have created_at in the type, we'll skip the "New" badge for now
+    // This can be added later if the API returns this field
+    return false;
   }
 
   function isElectionActive(election: Invitation["elections"]): boolean {
@@ -312,29 +343,118 @@ export default function VoterPage() {
         )}
       </header>
 
-      {/* Generate Identity */}
-      <div className="glass rounded-2xl p-6">
-        <h3 className="text-lg font-semibold text-white">Your Identity</h3>
-        <div className="mt-3 rounded-lg bg-black/30 border border-white/5 px-3 py-2 text-sm text-indigo-300 break-all">
-          Commitment: <span className="font-mono text-xs md:text-sm">{commitment ?? "generating..."}</span>
+      {/* Statistics Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="glass rounded-2xl p-6 border border-green-500/20 bg-gradient-to-br from-green-500/5 to-transparent">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-slate-400 mb-1">Active Elections</p>
+              <p className="text-4xl font-bold text-green-400">{acceptedInvitations.length}</p>
+              <p className="text-xs text-slate-500 mt-2">Ready to vote</p>
+            </div>
+            <div className="h-12 w-12 rounded-full bg-green-500/20 flex items-center justify-center">
+              <svg className="h-6 w-6 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+          </div>
         </div>
-        <p className="mt-2 text-xs text-slate-500">
-          This identity is generated locally and stored in your browser. It's used to cast anonymous votes.
+
+        <div className="glass rounded-2xl p-6 border border-slate-500/20 bg-gradient-to-br from-slate-500/5 to-transparent">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-slate-400 mb-1">Ended Elections</p>
+              <p className="text-4xl font-bold text-slate-300">{endedElections.length}</p>
+              <p className="text-xs text-slate-500 mt-2">View results</p>
+            </div>
+            <div className="h-12 w-12 rounded-full bg-slate-500/20 flex items-center justify-center">
+              <svg className="h-6 w-6 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+              </svg>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Generate Identity */}
+      <div className="glass rounded-2xl p-6 border border-indigo-500/20">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+            <svg className="h-5 w-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            </svg>
+            Your Identity
+          </h3>
+          {commitment && (
+            <button
+              onClick={copyCommitment}
+              className="text-xs px-3 py-1.5 rounded-lg bg-indigo-600/20 hover:bg-indigo-600/30 border border-indigo-500/30 text-indigo-300 hover:text-indigo-200 transition-colors flex items-center gap-1.5"
+              title="Copy commitment to clipboard"
+            >
+              {copiedCommitment ? (
+                <>
+                  <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  Copied!
+                </>
+              ) : (
+                <>
+                  <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
+                  Copy
+                </>
+              )}
+            </button>
+          )}
+        </div>
+        <div className="mt-3 rounded-lg bg-black/30 border border-white/5 px-4 py-3 text-sm text-indigo-300 break-all relative">
+          <span className="text-slate-400">Commitment:</span>
+          <div className="mt-1 font-mono text-xs md:text-sm">{commitment ?? "generating..."}</div>
+        </div>
+        <p className="mt-3 text-xs text-slate-400 flex items-start gap-2">
+          <svg className="h-4 w-4 text-slate-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <span>This identity is generated locally and stored in your browser. It's used to cast anonymous votes.</span>
         </p>
       </div>
 
       {/* Pending Invitations */}
-      {pendingInvitations.length > 0 && (
+      {loadingInvitations ? (
         <div className="glass rounded-2xl p-6">
-          <h3 className="text-lg font-semibold text-white mb-4">Pending Invitations</h3>
+          <div className="animate-pulse space-y-4">
+            <div className="h-6 bg-slate-700/50 rounded w-48"></div>
+            <div className="space-y-3">
+              <div className="h-20 bg-slate-700/30 rounded-xl"></div>
+              <div className="h-20 bg-slate-700/30 rounded-xl"></div>
+            </div>
+          </div>
+        </div>
+      ) : pendingInvitations.length > 0 ? (
+        <div className="glass rounded-2xl p-6">
+          <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+            Pending Invitations
+            <span className="ml-2 rounded-full bg-indigo-500/20 border border-indigo-500/30 px-2.5 py-0.5 text-xs font-medium text-indigo-300">
+              {pendingInvitations.length}
+            </span>
+          </h3>
           <div className="space-y-3">
             {pendingInvitations.map((inv) => (
               <div
                 key={inv.id}
-                className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-xl border border-white/10 bg-white/5 p-4"
+                className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-xl border border-white/10 bg-white/5 p-4 hover:bg-white/10 hover:border-indigo-500/30 transition-all duration-200"
               >
-                <div>
-                  <p className="font-medium text-white">{inv.elections.name}</p>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-1">
+                    <p className="font-medium text-white">{inv.elections.name}</p>
+                    {isNewInvitation(inv) && (
+                      <span className="rounded-full bg-amber-500/20 border border-amber-500/30 px-2 py-0.5 text-xs font-medium text-amber-300">
+                        New
+                      </span>
+                    )}
+                  </div>
                   <p className="text-sm text-slate-400">
                     {inv.elections.ends_at
                       ? `Ends: ${new Date(inv.elections.ends_at).toLocaleDateString()}`
@@ -342,32 +462,54 @@ export default function VoterPage() {
                   </p>
                 </div>
                 <button
-                  className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-500 disabled:opacity-60 disabled:cursor-not-allowed shadow-lg shadow-indigo-500/20"
+                  className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition-all hover:bg-indigo-500 hover:scale-105 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:scale-100 shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/30"
                   onClick={() => acceptInvitation(inv)}
                   disabled={!commitment || accepting === inv.id}
                 >
-                  {accepting === inv.id ? "Accepting..." : "Accept"}
+                  {accepting === inv.id ? (
+                    <span className="flex items-center gap-2">
+                      <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Accepting...
+                    </span>
+                  ) : (
+                    "Accept"
+                  )}
                 </button>
               </div>
             ))}
           </div>
         </div>
-      )}
+      ) : null}
 
       {/* Accepted Elections - Can Vote */}
       {acceptedInvitations.length > 0 && (
         <div className="glass rounded-2xl p-6">
-          <h3 className="text-lg font-semibold text-white mb-4">Active Elections</h3>
+          <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+            Active Elections
+            <span className="ml-2 rounded-full bg-green-500/20 border border-green-500/30 px-2.5 py-0.5 text-xs font-medium text-green-300">
+              {acceptedInvitations.length}
+            </span>
+          </h3>
           <div className="space-y-4">
             {acceptedInvitations.map((inv) => (
               <div
                 key={inv.id}
                 onClick={() => router.push(`/voter/election/${inv.election_id}`)}
-                className="rounded-xl border border-white/10 bg-white/5 p-4 cursor-pointer transition hover:bg-white/10 hover:border-indigo-500/50 group"
+                className="rounded-xl border border-white/10 bg-white/5 p-4 cursor-pointer transition-all duration-200 hover:bg-white/10 hover:border-indigo-500/50 hover:shadow-lg hover:shadow-indigo-500/10 group"
               >
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
-                    <p className="font-medium text-white group-hover:text-indigo-300 transition-colors">{inv.elections.name}</p>
+                    <div className="flex items-center gap-2 mb-1">
+                      <p className="font-medium text-white group-hover:text-indigo-300 transition-colors">{inv.elections.name}</p>
+                      {isEndingSoon(inv.elections) && (
+                        <span className="rounded-full bg-orange-500/20 border border-orange-500/30 px-2 py-0.5 text-xs font-medium text-orange-300 animate-pulse">
+                          Ending Soon
+                        </span>
+                      )}
+                    </div>
                     <p className="text-sm text-slate-400 mt-1">
                       {inv.elections.ends_at
                         ? `Ends: ${new Date(inv.elections.ends_at).toLocaleString()}`
@@ -379,6 +521,9 @@ export default function VoterPage() {
                   </span>
                 </div>
                 <p className="text-xs text-slate-500 mt-3 flex items-center gap-1 group-hover:text-indigo-400 transition-colors">
+                  <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
                   Click to view candidates and vote
                 </p>
               </div>
@@ -389,18 +534,18 @@ export default function VoterPage() {
 
       {/* Ended Elections - View Results */}
       {endedElections.length > 0 && (
-        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h3 className="text-lg font-semibold text-slate-900 mb-4">Ended Elections</h3>
+        <section className="rounded-2xl border border-slate-200 glass p-6 shadow-sm">
+          <h3 className="text-lg font-semibold text-white mb-4">Ended Elections</h3>
           <div className="space-y-4">
             {endedElections.map((inv) => (
               <div
                 key={inv.id}
-                className="rounded-lg border border-slate-200 p-4"
+                className="rounded-lg border border-slate-200 p-4 glass"
               >
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
-                    <p className="font-medium text-slate-900">{inv.elections.name}</p>
-                    <p className="text-sm text-slate-600 mt-1">
+                    <p className="font-medium text-white">{inv.elections.name}</p>
+                    <p className="text-sm text-slate-400 mt-1">
                       {inv.elections.ends_at
                         ? `Ended: ${new Date(inv.elections.ends_at).toLocaleString()}`
                         : "Ended"}
@@ -422,19 +567,30 @@ export default function VoterPage() {
         </section>
       )}
 
-      {invitations.length === 0 && authenticated && user?.email?.address && (
+      {!loadingInvitations && invitations.length === 0 && authenticated && user?.email?.address && (
         <div className="glass rounded-2xl p-12 text-center border-dashed border-white/20">
-          <p className="text-slate-400">No invitations found for <span className="text-white">{user.email.address.toLowerCase()}</span>.</p>
-          <p className="text-xs text-slate-500 mt-2">
+          <div className="mx-auto h-20 w-20 text-slate-600 mb-4">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+            </svg>
+          </div>
+          <p className="text-slate-300 font-medium mb-1">No invitations found</p>
+          <p className="text-sm text-slate-400 mb-3">for <span className="text-white font-medium">{user.email.address.toLowerCase()}</span></p>
+          <p className="text-xs text-slate-500">
             Make sure the organizer invited this exact email address.
           </p>
         </div>
       )}
 
-      {acceptedInvitations.length === 0 && pendingInvitations.length === 0 && invitations.length > 0 && (
+      {!loadingInvitations && acceptedInvitations.length === 0 && pendingInvitations.length === 0 && invitations.length > 0 && (
         <div className="glass rounded-2xl p-12 text-center border-dashed border-white/20">
-          <p className="text-slate-400">No active elections available.</p>
-          <p className="text-xs text-slate-500 mt-2">
+          <div className="mx-auto h-20 w-20 text-slate-600 mb-4">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <p className="text-slate-300 font-medium mb-1">No active elections</p>
+          <p className="text-xs text-slate-400 mt-2">
             All your elections have ended or are not yet active.
           </p>
         </div>

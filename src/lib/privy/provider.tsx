@@ -18,7 +18,7 @@ export function PrivyAuthProvider({ children }: Props) {
         appearance: {
           theme: "light",
           accentColor: "#4f46e5",
-          logo: "https://privy.io/favicon.ico",
+          logo: "/votechainLogo.png",
         },
         embeddedWallets: {
           createOnLogin: "users-without-wallets",
@@ -29,5 +29,4 @@ export function PrivyAuthProvider({ children }: Props) {
     </PrivyProvider>
   );
 }
-
 

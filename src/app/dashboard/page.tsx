@@ -3,7 +3,7 @@
 import { usePrivy } from "@privy-io/react-auth";
 import Link from "next/link";
 import { Card, CardContent } from "../components/ui/Card";
-import { ChevronRight, Vote, Users, ShieldAlert, Loader2 } from "lucide-react";
+import { ChevronRight, Vote, Users, Loader2 } from "lucide-react";
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 
@@ -40,7 +40,7 @@ export default function DashboardPage() {
                     </p>
                 </header>
 
-                <div className="grid gap-8 md:grid-cols-3">
+                <div className="grid gap-8 md:grid-cols-2 max-w-4xl mx-auto">
                     {/* Voter Card */}
                     <Link href="/voter" className="group">
                         <Card className="h-full border-white/10 bg-white/5 hover:bg-white/10 hover:border-violet-500/50 transition-all duration-300">
@@ -72,24 +72,6 @@ export default function DashboardPage() {
                                 </p>
                                 <div className="flex items-center text-fuchsia-400 font-semibold group-hover:text-fuchsia-300">
                                     Manage Elections <ChevronRight className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform" />
-                                </div>
-                            </CardContent>
-                        </Card>
-                    </Link>
-
-                    {/* Admin Card */}
-                    <Link href="/admin" className="group">
-                        <Card className="h-full border-white/5 bg-white/[0.02] hover:bg-white/5 hover:border-slate-500/50 transition-all duration-300 opacity-80 hover:opacity-100">
-                            <CardContent className="p-8 flex flex-col h-full items-center text-center">
-                                <div className="h-20 w-20 rounded-2xl bg-slate-800/50 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                                    <ShieldAlert className="h-10 w-10 text-slate-400" />
-                                </div>
-                                <h3 className="text-2xl font-bold text-white mb-3">Admin</h3>
-                                <p className="text-slate-400 mb-8 flex-grow">
-                                    System administration and user management. Monitor platform health.
-                                </p>
-                                <div className="flex items-center text-slate-400 font-semibold group-hover:text-slate-300">
-                                    Admin Panel <ChevronRight className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform" />
                                 </div>
                             </CardContent>
                         </Card>

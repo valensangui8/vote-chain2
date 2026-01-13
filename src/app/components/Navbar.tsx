@@ -33,7 +33,6 @@ export function Navbar() {
     ? [
       { name: "Voter", href: "/voter" },
       { name: "Organizer", href: "/organizer" },
-      { name: "Admin", href: "/admin" },
     ]
     : [
       { name: "How it works", href: "/#how-it-works" },

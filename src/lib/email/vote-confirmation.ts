@@ -3,26 +3,26 @@ import { Resend } from 'resend';
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 export interface VoteConfirmationEmailProps {
-    voterEmail: string;
-    electionName: string;
-    transactionHash: string;
-    timestamp: string;
-    electionId: string;
+  voterEmail: string;
+  electionName: string;
+  transactionHash: string;
+  timestamp: string;
+  electionId: string;
 }
 
 export async function sendVoteConfirmationEmail({
-    voterEmail,
-    electionName,
-    transactionHash,
-    timestamp,
-    electionId,
+  voterEmail,
+  electionName,
+  transactionHash,
+  timestamp,
+  electionId,
 }: VoteConfirmationEmailProps) {
-    const etherscanUrl = `https://sepolia.etherscan.io/tx/${transactionHash}`;
-    const resultsUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/results/${electionId}`;
+  const etherscanUrl = `https://sepolia.etherscan.io/tx/${transactionHash}`;
+  const resultsUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'https://vote-chain2.netlify.app'}/results/${electionId}`;
 
-    const shortHash = `${transactionHash.slice(0, 10)}...${transactionHash.slice(-8)}`;
+  const shortHash = `${transactionHash.slice(0, 10)}...${transactionHash.slice(-8)}`;
 
-    const htmlContent = `
+  const htmlContent = `
 <!DOCTYPE html>
 <html>
 <head>
@@ -137,23 +137,22 @@ export async function sendVoteConfirmationEmail({
 </html>
   `;
 
-    try {
-        const { data, error } = await resend.emails.send({
-            from: 'VoteChain <noreply@resend.dev>', // You'll need to update this with your verified domain
-            to: [voterEmail],
-            subject: `✅ Your Vote Has Been Recorded - ${electionName}`,
-            html: htmlContent,
-        });
+  try {
+    const { data, error } = await resend.emails.send({
+      from: 'VoteChain <noreply@resend.dev>', // You'll need to update this with your verified domain
+      to: [voterEmail],
+      subject: `✅ Your Vote Has Been Recorded - ${electionName}`,
+      html: htmlContent,
+    });
 
-        if (error) {
-            console.error('Error sending vote confirmation email:', error);
-            return { success: false, error };
-        }
-
-        console.log('Vote confirmation email sent:', data);
-        return { success: true, data };
-    } catch (error) {
-        console.error('Failed to send vote confirmation email:', error);
-        return { success: false, error };
+    if (error) {
+      console.error('Error sending vote confirmation email:', error);
+      return { success: false, error };
     }
+
+    return { success: true, data };
+  } catch (error) {
+    console.error('Failed to send vote confirmation email:', error);
+    return { success: false, error };
+  }
 }

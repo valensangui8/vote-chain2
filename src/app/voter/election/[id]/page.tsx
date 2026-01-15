@@ -497,11 +497,11 @@ export default function ElectionDetailPage() {
   if (!isActive) {
     return (
       <div className="mx-auto flex w-full max-w-4xl flex-col gap-8 py-10">
-        <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center">
+        <div className="rounded-2xl border border-slate-200 mt-20 glass p-12 text-center">
           <p className="text-slate-600">This election has ended.</p>
           <button
             onClick={() => router.push("/voter")}
-            className="mt-4 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-500"
+            className="mt-4 rounded-lg bg-slate-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-500"
           >
             Back to Elections
           </button>

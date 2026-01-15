@@ -71,6 +71,7 @@ export default function OrganizerPage() {
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [modalElection, setModalElection] = useState<Election | null>(null);
+  const [notifying, setNotifying] = useState(false);
   const [loadingResults, setLoadingResults] = useState(false);
 
   // Transaction progress tracking
@@ -814,6 +815,42 @@ export default function OrganizerPage() {
       setToast(err.message || "Failed to send invitation");
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function notifyVoters(election: Election) {
+    if (!election) return;
+
+    const confirmed = confirm(
+      `Send results notification to all voters who participated in "${election.name}"?`
+    );
+
+    if (!confirmed) return;
+
+    try {
+      setNotifying(true);
+      setToast("Sending results notifications...");
+
+      const res = await fetch(`/api/elections/${election.id}/notify-results`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to send notifications");
+      }
+
+      setToast(`✅ Results sent to ${data.emailsSent} voters!`);
+      
+      if (data.emailsFailed > 0) {
+        console.error("Some emails failed:", data.errors);
+      }
+    } catch (err: any) {
+      setToast(err.message || "Failed to send notifications");
+    } finally {
+      setNotifying(false);
     }
   }
 
@@ -2005,15 +2042,24 @@ export default function OrganizerPage() {
             {/* Actions */}
             <div className="flex gap-3 border-t border-slate-200 pt-4">
               {hasElectionEnded(modalElection) && (
-                <button
-                  onClick={() => {
-                    closeDetailsModal();
-                    window.location.href = `/results/${modalElection.id}`;
-                  }}
-                  className="flex-1 rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-green-500"
-                >
-                  📊 View Full Results
-                </button>
+                <>
+                  <button
+                    onClick={() => {
+                      closeDetailsModal();
+                      window.location.href = `/results/${modalElection.id}`;
+                    }}
+                    className="flex-1 rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-green-500"
+                  >
+                    📊 View Full Results
+                  </button>
+                  <button
+                    onClick={() => notifyVoters(modalElection)}
+                    disabled={notifying}
+                    className="flex-1 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {notifying ? "Sending..." : "📧 Notify Voters"}
+                  </button>
+                </>
               )}
               {!hasElectionEnded(modalElection) && (
                 <button

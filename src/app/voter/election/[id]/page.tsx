@@ -385,6 +385,7 @@ export default function ElectionDetailPage() {
 
       // Send vote confirmation email
       try {
+        console.log("📧 Attempting to send vote confirmation email to:", user?.email?.address);
         const emailRes = await fetch("/api/votes/confirm", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -395,10 +396,17 @@ export default function ElectionDetailPage() {
           }),
         });
 
+        console.log("📧 Email API response status:", emailRes.status);
+        
         if (emailRes.ok) {
+          console.log("✅ Email sent successfully!");
           setProofStatus(`✓ Vote submitted! Check your email for confirmation.`);
+        } else {
+          const errorData = await emailRes.json();
+          console.error("❌ Email API error:", errorData);
         }
       } catch (emailErr) {
+        console.error("❌ Email sending failed:", emailErr);
         // Don't fail the vote if email fails
       }
 

@@ -1,6 +1,7 @@
-import { Resend } from 'resend';
+import * as brevo from '@getbrevo/brevo';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+const apiInstance = new brevo.TransactionalEmailsApi();
+apiInstance.setApiKey(brevo.TransactionalEmailsApiApiKeys.apiKey, process.env.BREVO_API_KEY || '');
 
 export interface VoteConfirmationEmailProps {
   voterEmail: string;
@@ -109,13 +110,10 @@ export async function sendVoteConfirmationEmail({
                 </tr>
               </table>
 
-              <!-- Results Link -->
-              <p style="margin: 0 0 16px 0; color: #374151; font-size: 14px; line-height: 1.6;">
-                📊 Results will be available after the election ends.
+              <!-- Thank You Message -->
+              <p style="margin: 0; color: #374151; font-size: 14px; line-height: 1.6; text-align: center;">
+                Thank you for participating in this secure, blockchain-powered election. You will be notified when results are available.
               </p>
-              <a href="${resultsUrl}" style="display: inline-block; color: #6366f1; text-decoration: none; font-size: 14px; font-weight: 600;">
-                View Election →
-              </a>
 
             </td>
           </tr>
@@ -138,19 +136,22 @@ export async function sendVoteConfirmationEmail({
   `;
 
   try {
-    const { data, error } = await resend.emails.send({
-      from: 'VoteChain <noreply@resend.dev>', // You'll need to update this with your verified domain
-      to: [voterEmail],
-      subject: `✅ Your Vote Has Been Recorded - ${electionName}`,
-      html: htmlContent,
-    });
+    const sendSmtpEmail = new brevo.SendSmtpEmail();
 
-    if (error) {
-      console.error('Error sending vote confirmation email:', error);
-      return { success: false, error };
-    }
+    // Use the email address you verified in Brevo (usually your account email)
+    const senderEmail = process.env.BREVO_SENDER_EMAIL || 'valentinosanguinetti@gmail.com';
 
-    return { success: true, data };
+    sendSmtpEmail.sender = {
+      name: 'VoteChain',
+      email: senderEmail  // Must be verified in Brevo
+    };
+    sendSmtpEmail.to = [{ email: voterEmail }];
+    sendSmtpEmail.subject = `✅ Your Vote Has Been Recorded - ${electionName}`;
+    sendSmtpEmail.htmlContent = htmlContent;
+
+    const result = await apiInstance.sendTransacEmail(sendSmtpEmail);
+
+    return { success: true, data: result };
   } catch (error) {
     console.error('Failed to send vote confirmation email:', error);
     return { success: false, error };

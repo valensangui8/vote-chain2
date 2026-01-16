@@ -6,23 +6,14 @@ apiInstance.setApiKey(brevo.TransactionalEmailsApiApiKeys.apiKey, process.env.BR
 export interface VoteConfirmationEmailProps {
   voterEmail: string;
   electionName: string;
-  transactionHash: string;
   timestamp: string;
-  electionId: string;
 }
 
 export async function sendVoteConfirmationEmail({
   voterEmail,
   electionName,
-  transactionHash,
   timestamp,
-  electionId,
 }: VoteConfirmationEmailProps) {
-  const etherscanUrl = `https://sepolia.etherscan.io/tx/${transactionHash}`;
-  const resultsUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'https://vote-chain2.netlify.app'}/results/${electionId}`;
-
-  const shortHash = `${transactionHash.slice(0, 10)}...${transactionHash.slice(-8)}`;
-
   const htmlContent = `
 <!DOCTYPE html>
 <html>
@@ -79,32 +70,14 @@ export async function sendVoteConfirmationEmail({
                 </tr>
               </table>
 
-              <!-- Transaction Details Box -->
-              <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #eff6ff; border-radius: 8px; margin-bottom: 24px;">
-                <tr>
-                  <td style="padding: 20px;">
-                    <h2 style="margin: 0 0 16px 0; color: #1e40af; font-size: 18px; font-weight: 600;">
-                      🔐 Transaction Details
-                    </h2>
-                    <p style="margin: 0 0 12px 0; color: #1f2937; font-size: 14px;">
-                      <strong>Transaction Hash:</strong>
-                    </p>
-                    <p style="margin: 0 0 16px 0; color: #4b5563; font-size: 13px; font-family: 'Courier New', monospace; word-break: break-all;">
-                      ${shortHash}
-                    </p>
-                    <a href="${etherscanUrl}" style="display: inline-block; background-color: #3b82f6; color: #ffffff; text-decoration: none; padding: 12px 24px; border-radius: 6px; font-size: 14px; font-weight: 600;">
-                      🔍 Verify on Etherscan →
-                    </a>
-                  </td>
-                </tr>
-              </table>
-
               <!-- Privacy Note -->
               <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #fef3c7; border-left: 4px solid #f59e0b; border-radius: 8px; margin-bottom: 24px;">
                 <tr>
                   <td style="padding: 16px 20px;">
                     <p style="margin: 0; color: #92400e; font-size: 14px; line-height: 1.6;">
-                      <strong>🔒 Privacy Note:</strong> Your vote choice is encrypted and anonymous. This receipt only confirms that you participated - it does not reveal who you voted for.
+                      <strong>🔒 Privacy Note:</strong> Your vote choice is encrypted and anonymous. This receipt confirms participation only.
+                      <br />
+                      Keep the transaction hash shown right after voting on the website to verify on Etherscan. It is displayed only once on-screen.
                     </p>
                   </td>
                 </tr>

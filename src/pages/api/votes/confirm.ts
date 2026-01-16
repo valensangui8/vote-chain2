@@ -6,7 +6,6 @@ import { z } from "zod";
 const voteConfirmationSchema = z.object({
     electionId: z.string().uuid(),
     voterEmail: z.string().email(),
-    transactionHash: z.string().startsWith("0x"),
 });
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -20,7 +19,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return res.status(400).json({ error: parsed.error.flatten() });
     }
 
-    const { electionId, voterEmail, transactionHash } = parsed.data;
+    const { electionId, voterEmail } = parsed.data;
 
     try {
         const supabase = getSupabaseServerClient();
@@ -56,9 +55,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         const result = await sendVoteConfirmationEmail({
             voterEmail,
             electionName: election.name,
-            transactionHash,
             timestamp,
-            electionId: election.id,
         });
 
         if (!result.success) {

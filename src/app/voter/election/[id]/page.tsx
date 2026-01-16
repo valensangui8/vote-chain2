@@ -51,6 +51,7 @@ export default function ElectionDetailPage() {
   const [proofStatus, setProofStatus] = useState<string | null>(null);
   const [voting, setVoting] = useState(false);
   const [hasVoted, setHasVoted] = useState(false);
+  const [txHashForDisplay, setTxHashForDisplay] = useState<string | null>(null);
 
   // Check if already voted on mount
   useEffect(() => {
@@ -377,7 +378,8 @@ export default function ElectionDetailPage() {
         ],
       });
 
-      setProofStatus(`✓ Vote submitted successfully! Tx: ${txHash.substring(0, 10)}...`);
+      setTxHashForDisplay(txHash);
+      setProofStatus("✓ Vote submitted! Copy your transaction hash below to verify on Etherscan. It will only be shown once on this screen.");
       setHasVoted(true);
 
       // Save to localStorage for persistence
@@ -392,7 +394,6 @@ export default function ElectionDetailPage() {
           body: JSON.stringify({
             electionId: election.id,
             voterEmail: user?.email?.address || "",
-            transactionHash: txHash,
           }),
         });
 
@@ -400,7 +401,6 @@ export default function ElectionDetailPage() {
         
         if (emailRes.ok) {
           console.log("✅ Email sent successfully!");
-          setProofStatus(`✓ Vote submitted! Check your email for confirmation.`);
         } else {
           const errorData = await emailRes.json();
           console.error("❌ Email API error:", errorData);
@@ -444,11 +444,6 @@ export default function ElectionDetailPage() {
       } catch (saveErr) {
         console.error("Failed to save vote to Supabase:", saveErr);
       }
-
-      // Redirect after 3 seconds
-      setTimeout(() => {
-        router.push("/voter");
-      }, 3000);
     } catch (err: any) {
       console.error("❌ Vote submission error:", err);
       console.error("Error details:", {
@@ -560,6 +555,39 @@ export default function ElectionDetailPage() {
                 <span>Your vote is secured by zero-knowledge cryptography</span>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {txHashForDisplay && (
+        <div className="mt-6 glass rounded-2xl border border-indigo-500/30 bg-indigo-500/5 p-5">
+          <div className="flex flex-col gap-3">
+            <div>
+              <p className="text-sm font-semibold text-indigo-200">Transaction hash (shown only once)</p>
+              <p className="text-xs text-indigo-200/80">Copy and save this hash now to verify your vote on Etherscan. If you refresh or leave, it will not be shown again.</p>
+            </div>
+            <div className="rounded-lg border border-indigo-500/30 bg-black/30 p-3 font-mono text-sm text-indigo-100 break-all">
+              {txHashForDisplay}
+            </div>
+            <div className="flex flex-wrap gap-3">
+              <button
+                onClick={() => txHashForDisplay && navigator.clipboard.writeText(txHashForDisplay)}
+                className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-500"
+              >
+                Copy hash
+              </button>
+              <a
+                href={`https://sepolia.etherscan.io/tx/${txHashForDisplay}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="rounded-lg border border-indigo-500/40 px-4 py-2 text-sm font-semibold text-indigo-100 hover:border-indigo-300 hover:text-indigo-50"
+              >
+                Verify on Etherscan →
+              </a>
+            </div>
+            <p className="text-xs text-amber-200">
+              This is the only on-screen copy of your transaction hash. We do not email it or store it alongside your identity.
+            </p>
           </div>
         </div>
       )}

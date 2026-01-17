@@ -307,11 +307,7 @@ export default function ElectionDetailPage() {
       if (!isInGroup) {
         throw new Error(
           `Your identity commitment is not registered on-chain yet for this election. ` +
-          `This can happen if:\n\n` +
-          `1. The blockchain events are still being indexed (wait 10-20 seconds and try again)\n` +
-          `2. The accept invitation transaction failed\n` +
-          `3. You're using a different browser/device than when you accepted\n\n` +
-          `Please wait a moment and try voting again. If the problem persists, go back to the voter dashboard and re-accept the invitation.`
+          `Go back to the voter dashboard, click the 🔄 Re-register button for this election and try voting again.`
         );
       }
 
@@ -457,6 +453,13 @@ export default function ElectionDetailPage() {
       const errorMessage = err?.message?.toLowerCase() || "";
       const errorReason = err?.reason?.toLowerCase() || "";
       const errorData = JSON.stringify(err?.data || "").toLowerCase();
+      const needsReRegister =
+        errorMessage.includes("identity commitment is not registered") ||
+        errorMessage.includes("no members found on-chain");
+
+      if (needsReRegister) {
+        localStorage.setItem(`reregister_needed_${election.id}`, "true");
+      }
 
       if (
         errorMessage.includes("nullifieralreadyused") ||
@@ -566,13 +569,22 @@ export default function ElectionDetailPage() {
               <p className="text-sm font-semibold text-indigo-200">Transaction hash (shown only once)</p>
               <p className="text-xs text-indigo-200/80">Copy and save this hash now to verify your vote on Etherscan. If you refresh or leave, it will not be shown again.</p>
             </div>
-            <div className="rounded-lg border border-indigo-500/30 bg-black/30 p-3 font-mono text-sm text-indigo-100 break-all">
-              {txHashForDisplay}
+            <div className="flex items-center gap-3 rounded-lg border border-indigo-500/30 bg-black/30 p-3 font-mono text-sm text-indigo-100">
+              <div className="flex-1 break-all">{txHashForDisplay}</div>
+              <button
+                onClick={() => txHashForDisplay && navigator.clipboard.writeText(txHashForDisplay)}
+                title="Copy hash"
+                className="cursor-pointer rounded-md border border-indigo-500/40 bg-indigo-500/10 p-2 text-indigo-100 hover:border-indigo-300 hover:text-indigo-50"
+              >
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+              </button>
             </div>
             <div className="flex flex-wrap gap-3">
               <button
                 onClick={() => txHashForDisplay && navigator.clipboard.writeText(txHashForDisplay)}
-                className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-500"
+                className="cursor-pointer rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-500"
               >
                 Copy hash
               </button>
@@ -729,4 +741,3 @@ export default function ElectionDetailPage() {
     </div>
   );
 }
-

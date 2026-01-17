@@ -35,6 +35,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   if (invitation.status !== "pending") {
+    if (invitation.status === "accepted") {
+      return res.status(200).json({
+        invitation,
+        // Return election on-chain IDs and election_id so frontend can re-register commitment
+        election: {
+          id: (invitation.elections as any).id,
+          onchainElectionId: (invitation.elections as any).onchain_election_id,
+          onchainGroupId: (invitation.elections as any).onchain_group_id,
+        },
+      });
+    }
     return res.status(400).json({ error: "Invitation already processed" });
   }
 
@@ -67,4 +78,3 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     },
   });
 }
-

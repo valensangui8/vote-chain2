@@ -41,6 +41,7 @@ export default function VoterPage() {
   const [toast, setToast] = useState<string | null>(null);
   const [loadingInvitations, setLoadingInvitations] = useState(true);
   const [copiedCommitment, setCopiedCommitment] = useState(false);
+  const [reRegisterNeeded, setReRegisterNeeded] = useState<Record<string, boolean>>({});
 
   // Helper to wait for transaction confirmation
   async function waitForTransaction(txHash: string, description: string = "Transaction") {
@@ -91,6 +92,19 @@ export default function VoterPage() {
       loadInvitations();
     }
   }, [authenticated, user?.email?.address]);
+
+  useEffect(() => {
+    if (!invitations.length) {
+      setReRegisterNeeded({});
+      return;
+    }
+    const nextState: Record<string, boolean> = {};
+    for (const inv of invitations) {
+      const key = `reregister_needed_${inv.election_id}`;
+      nextState[inv.election_id] = localStorage.getItem(key) === "true";
+    }
+    setReRegisterNeeded(nextState);
+  }, [invitations]);
 
   useEffect(() => {
     // Wait for user to be authenticated before creating identity
@@ -291,6 +305,10 @@ export default function VoterPage() {
       // Reload invitations to show the accepted one in the list
       await loadInvitations();
 
+      const reRegisterKey = `reregister_needed_${invitation.election_id}`;
+      localStorage.removeItem(reRegisterKey);
+      setReRegisterNeeded((prev) => ({ ...prev, [invitation.election_id]: false }));
+
       // Show success message - user can now click to vote
       setToast(`Invitation accepted! You can now vote in "${(invitation.elections as any).name}"`);
       setTimeout(() => setToast(null), 5000);
@@ -324,6 +342,9 @@ export default function VoterPage() {
   );
   const endedElections = invitations.filter(
     (i) => i.status === "accepted" && !isElectionActive(i.elections) && hasElectionEnded(i.elections)
+  );
+  const hasAnyReRegisterNeeded = acceptedInvitations.some(
+    (inv) => reRegisterNeeded[inv.election_id]
   );
 
   return (
@@ -529,36 +550,40 @@ export default function VoterPage() {
                   >
                     Vote Now →
                   </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      acceptInvitation(inv);
-                    }}
-                    disabled={!commitment || accepting === inv.id}
-                    title="Re-register your commitment if you're having issues voting"
-                    className="rounded-lg bg-amber-600/80 px-4 py-2 text-sm font-semibold text-white transition-all hover:bg-amber-500 disabled:opacity-60 disabled:cursor-not-allowed"
-                  >
-                    {accepting === inv.id ? (
-                      <span className="flex items-center gap-2">
-                        <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                        Re-registering...
-                      </span>
-                    ) : (
-                      "🔄 Re-register"
-                    )}
-                  </button>
+                  {reRegisterNeeded[inv.election_id] && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        acceptInvitation(inv);
+                      }}
+                      disabled={!commitment || accepting === inv.id}
+                      title="Re-register your commitment if you're having issues voting"
+                      className="rounded-lg bg-amber-600/80 px-4 py-2 text-sm font-semibold text-white transition-all hover:bg-amber-500 disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                      {accepting === inv.id ? (
+                        <span className="flex items-center gap-2">
+                          <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                          Re-registering...
+                        </span>
+                      ) : (
+                        "🔄 Re-register"
+                      )}
+                    </button>
+                  )}
                 </div>
               </div>
             ))}
           </div>
-          <div className="mt-4 rounded-lg bg-amber-500/10 border border-amber-500/20 p-3">
-            <p className="text-xs text-amber-200/80">
-              💡 <strong>Tip:</strong> If you see an error about "identity commitment not registered" when voting, click the 🔄 button to re-register. Wait 30 seconds after re-registering before trying to vote again.
-            </p>
-          </div>
+          {hasAnyReRegisterNeeded && (
+            <div className="mt-4 rounded-lg bg-amber-500/10 border border-amber-500/20 p-3">
+              <p className="text-xs text-amber-200/80">
+                💡 <strong>Tip:</strong> If you see an error about "identity commitment not registered" when voting, click the 🔄 button to re-register. Wait 30 seconds after re-registering before trying to vote again.
+              </p>
+            </div>
+          )}
         </div>
       )}
 
@@ -643,4 +668,3 @@ export default function VoterPage() {
     </div>
   );
 }
-

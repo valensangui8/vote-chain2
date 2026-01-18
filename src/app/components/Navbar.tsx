@@ -24,25 +24,6 @@ export function Navbar() {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  // Redirect to dashboard after login (only from public landing pages, not results)
-  useEffect(() => {
-    if (ready && authenticated) {
-      // Only redirect if we're on a public landing page (home, public-elections)
-      // Don't redirect from results pages (user wants to see results after login)
-      // Don't redirect if already on dashboard or authenticated pages (voter, organizer, admin)
-      const publicPages = ["/", "/public-elections"];
-      const authPages = ["/voter", "/organizer", "/dashboard"];
-      const isResultsPage = pathname.startsWith("/results");
-      const isPublicLandingPage = publicPages.includes(pathname);
-      const isAuthPage = authPages.some(page => pathname.startsWith(page));
-      
-      if (isPublicLandingPage && !isAuthPage && !isResultsPage) {
-        router.push("/dashboard");
-      }
-    }
-  }, [ready, authenticated, pathname, router]);
-
-
   const scrollToSection = (id: string) => {
     const element = document.getElementById(id);
     if (element) {
@@ -64,6 +45,7 @@ export function Navbar() {
     ? [
       { name: "Voter", href: "/voter" },
       { name: "Organizer", href: "/organizer" },
+      { name: "Public elections", href: "/public-elections" },
     ]
     : [
       { name: "How it works", href: "/#how-it-works" },

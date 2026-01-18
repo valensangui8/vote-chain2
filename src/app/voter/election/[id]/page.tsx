@@ -52,6 +52,7 @@ export default function ElectionDetailPage() {
   const [voting, setVoting] = useState(false);
   const [hasVoted, setHasVoted] = useState(false);
   const [txHashForDisplay, setTxHashForDisplay] = useState<string | null>(null);
+  const [showReRegisterAction, setShowReRegisterAction] = useState(false);
 
   // Check if already voted on mount
   useEffect(() => {
@@ -169,6 +170,7 @@ export default function ElectionDetailPage() {
   }
 
   async function submitVote() {
+    setShowReRegisterAction(false);
     if (!selectedCandidate) {
       setProofStatus("Please select a candidate first");
       return;
@@ -377,6 +379,7 @@ export default function ElectionDetailPage() {
       setTxHashForDisplay(txHash);
       setProofStatus("✓ Vote submitted! Copy your transaction hash below to verify on Etherscan. It will only be shown once on this screen.");
       setHasVoted(true);
+      setShowReRegisterAction(false);
 
       // Save to localStorage for persistence
       localStorage.setItem(`voted_${election.id}`, "true");
@@ -460,6 +463,7 @@ export default function ElectionDetailPage() {
 
       if (needsReRegister) {
         localStorage.setItem(`reregister_needed_${election.id}`, "true");
+        setShowReRegisterAction(true);
       }
 
       if (
@@ -733,6 +737,16 @@ export default function ElectionDetailPage() {
                     )}
                     <span>{proofStatus}</span>
                   </div>
+                  {showReRegisterAction && (
+                    <div className="mt-3">
+                      <button
+                        onClick={() => router.push("/voter")}
+                        className="rounded-lg bg-amber-600/80 px-4 py-2 text-xs font-semibold text-white transition-all hover:bg-amber-500"
+                      >
+                        Go to Dashboard to Re-register →
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

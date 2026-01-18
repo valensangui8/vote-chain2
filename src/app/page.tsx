@@ -1,8 +1,6 @@
 "use client";
 
-import { usePrivy } from "@privy-io/react-auth";
 import { useEffect } from "react";
-import { useRouter } from "next/navigation";
 import { HeroSection } from "./components/landing/HeroSection";
 import { CompaniesMarquee } from "./components/landing/CompaniesMarquee";
 import { HowItWorks } from "./components/landing/HowItWorks";
@@ -12,16 +10,6 @@ import { TechDetails } from "./components/landing/TechDetails";
 import { Footer } from "./components/Footer";
 
 export default function Home() {
-  const { authenticated, ready } = usePrivy();
-  const router = useRouter();
-
-  // Redirect to dashboard if logged in
-  useEffect(() => {
-    if (ready && authenticated) {
-      router.push("/dashboard");
-    }
-  }, [ready, authenticated, router]);
-
   // Handle hash navigation - scroll to section when hash is in URL
   useEffect(() => {
     const handleHashScroll = () => {

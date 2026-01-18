@@ -417,8 +417,9 @@ export default function ElectionDetailPage() {
           // privyUserId intentionally not logged to preserve anonymity
         });
 
-        // IMPORTANT: Do NOT send voterPrivyUserId to preserve voter anonymity
+        // IMPORTANT: Do NOT send voterPrivyUserId or txHash to preserve voter anonymity
         // The nullifier is sufficient to prevent double voting
+        // txHash is shown on-screen once but not stored to prevent linkage via Privy+Supabase
         const saveRes = await fetch("/api/votes", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -426,8 +427,8 @@ export default function ElectionDetailPage() {
             electionId: election.id, // Supabase election UUID
             nullifierHash: semaphoreProof.nullifier.toString(),
             signal: semaphoreProof.message.toString(),
-            txHash,
             // voterPrivyUserId intentionally omitted to preserve anonymity
+            // txHash intentionally omitted to prevent Privy↔Supabase linkage
           }),
         });
 

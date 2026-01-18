@@ -53,9 +53,10 @@ create table if not exists votes (
   election_id uuid references elections(id) on delete cascade,
   -- NOTE: voter_privy_user_id is intentionally NOT stored to preserve voter anonymity.
   -- The nullifier_hash is sufficient to prevent double voting without revealing identity.
+  -- NOTE: tx_hash is NOT stored to prevent linkage via Privy + Supabase admin attack.
+  -- Users see tx_hash on-screen once for verification; it is not persisted.
   nullifier_hash text unique not null,
   signal text not null,  -- The vote choice (candidate ID)
-  tx_hash text,          -- Blockchain transaction hash for verification
   created_at timestamptz default now()
 );
 

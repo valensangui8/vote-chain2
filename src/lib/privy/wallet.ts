@@ -1,7 +1,6 @@
 import type { Abi } from "viem";
 import { encodeFunctionData } from "viem";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type SmartWallet = any;
 
 export async function sendSmartWalletContractTx(params: {
@@ -12,7 +11,6 @@ export async function sendSmartWalletContractTx(params: {
   args: readonly unknown[];
 }) {
   const { smartWallet, to, abi, functionName, args } = params;
-  console.log("smartWallet", smartWallet);
 
   if (!smartWallet) {
     throw new Error("Smart wallet not ready. Ensure SmartWalletsProvider is configured and user is logged in.");

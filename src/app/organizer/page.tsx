@@ -84,43 +84,21 @@ export default function OrganizerPage() {
     return () => clearTimeout(timeout);
   }, [toast]);
 
-  // Helper to wait for transaction confirmation
   async function waitForTransaction(txHash: string, description: string = "Transaction") {
-    console.log(`⏳ Waiting for ${description} to confirm...`, txHash.substring(0, 20) + "...");
     const provider = new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_RPC_URL);
-
     let attempts = 0;
-    const maxAttempts = 40; // 40 * 3s = 2 minutes max
+    const maxAttempts = 40;
 
     while (attempts < maxAttempts) {
       try {
         const receipt = await provider.getTransactionReceipt(txHash);
         if (receipt) {
-          if (receipt.status === 1) {
-            console.log(`✓ ${description} confirmed!`, {
-              blockNumber: receipt.blockNumber,
-              gasUsed: receipt.gasUsed.toString(),
-              txHash: txHash,
-            });
-            return receipt;
-          } else {
-            console.error(`❌ ${description} FAILED on blockchain!`, {
-              status: receipt.status,
-              blockNumber: receipt.blockNumber,
-              txHash: txHash,
-            });
-            throw new Error(`${description} transaction failed on blockchain (status: 0). Check Sepolia explorer: https://sepolia.etherscan.io/tx/${txHash}`);
-          }
+          if (receipt.status === 1) return receipt;
+          throw new Error(`${description} transaction failed on blockchain (status: 0). Check Sepolia explorer: https://sepolia.etherscan.io/tx/${txHash}`);
         }
       } catch (err: any) {
-        if (err.message?.includes("transaction failed")) {
-          // Already handled above
-          throw err;
-        }
-        // Transaction not yet mined, continue waiting
+        if (err?.message?.includes("transaction failed")) throw err;
       }
-
-      // Wait 3 seconds before checking again
       await new Promise(resolve => setTimeout(resolve, 3000));
       attempts++;
     }
@@ -128,7 +106,6 @@ export default function OrganizerPage() {
     throw new Error(`${description} timed out after ${maxAttempts * 3} seconds. Check Sepolia explorer: https://sepolia.etherscan.io/tx/${txHash}`);
   }
 
-  // Helper functions for modals
   async function openDetailsModal(election: Election) {
     setModalElection(election);
     const candidates = await loadElectionDetails(election.id);
@@ -142,25 +119,12 @@ export default function OrganizerPage() {
   }
 
   async function fetchElectionResults(election: Election, currentCandidates: Candidate[]) {
-    if (!election.onchain_election_id) {
-      console.warn("No onchain_election_id found for election:", election.id);
-      return;
-    }
+    if (!election.onchain_election_id) return;
 
     try {
       setLoadingResults(true);
 
-      console.log("🔍 Fetching results for election:", {
-        supabaseId: election.id,
-        onchainElectionId: election.onchain_election_id,
-        onchainElectionIdBigInt: BigInt(election.onchain_election_id).toString(),
-        contractAddress: contracts.voting,
-        rpcUrl: process.env.NEXT_PUBLIC_RPC_URL,
-      });
-
-      // Read candidates with vote counts from the contract
       const provider = new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_RPC_URL);
-      // Using ABIs that match the actual contract - run `npm run compile` to regenerate
       const votingContract = new ethers.Contract(
         contracts.voting,
         [
@@ -170,56 +134,30 @@ export default function OrganizerPage() {
         provider
       );
 
-      // First, verify if election exists on-chain
       try {
-        console.log("🔍 Checking if election exists on-chain...");
         const electionData = await votingContract.elections(BigInt(election.onchain_election_id));
-        console.log("✓ Election exists on-chain:", {
-          id: electionData.id?.toString(),
-          groupId: electionData.groupId?.toString(),
-          externalNullifier: electionData.externalNullifier?.toString(),
-          exists: electionData.exists,
-        });
-
         if (!electionData.exists) {
-          console.error("❌ Election exists in mapping but not marked as existing");
           setToast("Election data corrupted on blockchain.");
           return;
         }
-      } catch (electionErr: any) {
-        console.error("❌ Election does not exist on-chain or error reading:", electionErr);
+      } catch {
         setToast("Election not found on blockchain. It may not have been created properly.");
         return;
       }
 
       let onchainCandidates;
       try {
-        console.log("🔍 Reading candidates from contract...");
         onchainCandidates = await votingContract.getCandidates(BigInt(election.onchain_election_id));
       } catch (decodeErr: any) {
-        console.error("Error decoding contract response:", decodeErr);
 
         // If we get BAD_DATA error, it means no candidates exist on-chain for this election
         if (decodeErr.code === "BAD_DATA" || decodeErr.message?.includes("could not decode")) {
-          console.warn("No candidates found on-chain for election:", election.onchain_election_id);
-          console.warn("This election may have candidates in Supabase but not on the blockchain");
           setToast("No on-chain candidates found. Candidates must be added to the blockchain.");
           return;
         }
         throw decodeErr;
       }
 
-      console.log("✓ Fetched election results from contract:", {
-        electionId: election.onchain_election_id,
-        candidateCount: onchainCandidates.length,
-        results: onchainCandidates.map((c: any) => ({
-          id: c.id.toString(),
-          name: c.name,
-          voteCount: c.voteCount.toString(),
-        })),
-      });
-
-      // Update local state with contract data
       if (onchainCandidates.length > 0) {
         // Use the passed candidates list instead of state to avoid race conditions
         const updatedCandidates = currentCandidates.map((candidate, idx) => {
@@ -235,16 +173,9 @@ export default function OrganizerPage() {
 
         setElectionCandidates(updatedCandidates);
       } else {
-        console.warn("No candidates returned from contract");
         setToast("No candidates found on blockchain");
       }
-    } catch (err: any) {
-      console.error("Failed to fetch election results from contract:", err);
-      console.error("Error details:", {
-        message: err.message,
-        code: err.code,
-        reason: err.reason,
-      });
+    } catch {
       setToast("Failed to load results from blockchain");
     } finally {
       setLoadingResults(false);
@@ -290,10 +221,7 @@ export default function OrganizerPage() {
   }, [selectedElection]);
 
   async function loadSupabaseUser(): Promise<string | null> {
-    if (!user?.id) {
-      console.log("User not ready yet");
-      return null;
-    }
+    if (!user?.id) return null;
     try {
       const res = await fetch("/api/users/me", {
         method: "POST",
@@ -305,12 +233,10 @@ export default function OrganizerPage() {
         setSupabaseUserId(body.user.id);
         return body.user.id;
       } else {
-        console.error("Failed to load Supabase user:", body.error);
         setToast(`Failed to link user: ${body.error || "Unknown error"}`);
         return null;
       }
-    } catch (err) {
-      console.error("Failed to load Supabase user", err);
+    } catch {
       setToast("Failed to link user to Supabase. Please refresh the page.");
       return null;
     }
@@ -324,41 +250,30 @@ export default function OrganizerPage() {
       if (res.ok) {
         setElections(body.elections || []);
       }
-    } catch (err) {
-      console.error("Failed to load elections", err);
+    } catch {
+      // Ignore load errors
     }
   }
 
   async function loadElectionDetails(electionId: string): Promise<Candidate[]> {
     try {
-      console.log("Loading election details for:", electionId);
-
-      // Load candidates
       const candRes = await fetch(`/api/candidates?electionId=${electionId}`);
       const candBody = await candRes.json();
       let candidates: Candidate[] = [];
 
       if (candRes.ok) {
-        console.log("Loaded candidates:", candBody.candidates);
         candidates = candBody.candidates || [];
         setElectionCandidates(candidates);
-      } else {
-        console.error("Failed to load candidates:", candBody.error);
       }
 
-      // Load invitations
       const invRes = await fetch(`/api/invitations?electionId=${electionId}`);
       const invBody = await invRes.json();
       if (invRes.ok) {
-        console.log("Loaded invitations:", invBody.invitations);
         setElectionInvitations(invBody.invitations || []);
-      } else {
-        console.error("Failed to load invitations:", invBody.error);
       }
 
       return candidates;
-    } catch (err) {
-      console.error("Failed to load election details", err);
+    } catch {
       return [];
     }
   }
@@ -370,11 +285,9 @@ export default function OrganizerPage() {
       const invBody = await invRes.json();
       if (invRes.ok) {
         setElectionInvitations(invBody.invitations || []);
-      } else {
-        console.error("Failed to load invitations:", invBody.error);
       }
-    } catch (err) {
-      console.error("Error fetching invitations:", err);
+    } catch {
+      // Ignore
     }
   }
 
@@ -458,13 +371,9 @@ export default function OrganizerPage() {
         functionName: "registerElectionGroup",
         args: [electionIdBig, externalNullifierBig],
       });
-      console.log("✓ Group registration tx sent:", registerTxHash);
 
-      // Wait for confirmation
       await waitForTransaction(registerTxHash, "registerElectionGroup");
-      console.log("✓✓ Group registration CONFIRMED!");
 
-      // Get the groupId that was created by Semaphore
       const provider = new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_RPC_URL);
       const groupManagerContract = new ethers.Contract(
         contracts.groupManager,
@@ -472,7 +381,6 @@ export default function OrganizerPage() {
         provider
       );
       const groupIdBig = await groupManagerContract.getGroupId(electionIdBig);
-      console.log("✓ Got groupId from contract:", groupIdBig.toString());
 
       // 2) Create election
       setToast("Creating election on blockchain...");
@@ -489,11 +397,8 @@ export default function OrganizerPage() {
         functionName: "createElection",
         args: [electionIdBig, groupIdBig, externalNullifierBig, BigInt(startsUnix), BigInt(endsUnix), isPublic],
       });
-      console.log("✓ Election creation tx sent:", createElectionTxHash);
 
-      // Wait for confirmation
       await waitForTransaction(createElectionTxHash, "createElection");
-      console.log("✓✓ Election creation CONFIRMED!");
 
       // 3) Sync to Supabase
       if (!userId) {
@@ -516,15 +421,6 @@ export default function OrganizerPage() {
         const localDate = new Date(endsAt);
         normalizedEndsAt = localDate.toISOString();
       }
-
-      console.log("Creating election with dates:", {
-        originalStartsAt: startsAt,
-        originalEndsAt: endsAt,
-        normalizedStartsAt,
-        normalizedEndsAt,
-        now: new Date().toISOString(),
-        localTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-      });
 
       const res = await fetch("/api/elections", {
         method: "POST",
@@ -552,14 +448,6 @@ export default function OrganizerPage() {
         throw new Error("Election created but ID not returned. Please refresh and try again.");
       }
 
-      console.log("✅ Election created in Supabase:", {
-        supabaseId: createdElection.id,
-        onchainElectionId: createdElection.onchain_election_id,
-        onchainGroupId: createdElection.onchain_group_id,
-        generatedElectionId: onchainElectionId,
-        match: createdElection.onchain_election_id === onchainElectionId,
-      });
-
       // 4) Add candidates if any
       if (newCandidates.length > 0) {
         const invalidImage = newCandidates.find(candidate => candidate.image.startsWith("data:") || candidate.image.length > MAX_IMAGE_URL_LENGTH);
@@ -575,15 +463,6 @@ export default function OrganizerPage() {
         const names = newCandidates.map(c => c.name);
         const images = newCandidates.map(c => c.image || "");
 
-        console.log("📝 Adding candidates via BATCH function:", {
-          electionId: onchainElectionId,
-          electionIdBig: electionIdBig.toString(),
-          supabaseOnchainId: createdElection.onchain_election_id,
-          contractAddress: contracts.voting,
-          candidateCount: newCandidates.length,
-          names,
-        });
-
         try {
           // Use the new addCandidates batch function (1 transaction instead of N)
           const txHash = await sendSmartWalletContractTx({
@@ -593,12 +472,10 @@ export default function OrganizerPage() {
             functionName: "addCandidates",
             args: [electionIdBig, names, images],
           });
-          console.log(`✓ Batch addCandidates tx sent (${newCandidates.length} candidates):`, txHash);
 
           // Wait for confirmation
           setToast(`Waiting for all ${newCandidates.length} candidates to be confirmed...`);
           await waitForTransaction(txHash, `addCandidates(${newCandidates.length} candidates)`);
-          console.log(`✓✓ All ${newCandidates.length} candidates CONFIRMED on blockchain!`);
 
           // Now sync all candidates to Supabase
           setToast("Saving candidates to database...");
@@ -615,16 +492,11 @@ export default function OrganizerPage() {
               body: JSON.stringify(candidatePayload),
             });
 
-            if (!candRes.ok) {
-              console.warn(`⚠️ Failed to sync candidate ${candidate.name} to database (but it's on-chain)`);
-            } else {
-              console.log(`✓ Candidate ${candidate.name} saved to Supabase`);
-            }
+            // Candidate on-chain; Supabase sync is best-effort
           }
 
           setToast("All candidates added successfully!");
         } catch (err: any) {
-          console.error("❌ Error adding candidates in batch:", err);
           setToast("Batch add failed. Trying one-by-one...");
 
           try {
@@ -647,22 +519,15 @@ export default function OrganizerPage() {
                 ...(candidate.image && candidate.image.trim() ? { imageUrl: candidate.image.trim() } : {}),
               };
 
-              const candRes = await fetch("/api/candidates", {
+              await fetch("/api/candidates", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(candidatePayload),
               });
-
-              if (!candRes.ok) {
-                console.warn(`⚠️ Failed to sync candidate ${candidate.name} to database (but it's on-chain)`);
-              } else {
-                console.log(`✓ Candidate ${candidate.name} saved to Supabase`);
-              }
             }
 
             setToast("All candidates added successfully!");
           } catch (fallbackErr: any) {
-            console.error("❌ Error adding candidates one-by-one:", fallbackErr);
             setToast(`Failed to add candidates: ${fallbackErr.message}`);
             throw fallbackErr;
           }
@@ -689,13 +554,10 @@ export default function OrganizerPage() {
       if (updatedRes.ok && updatedBody.elections) {
         const newElection = updatedBody.elections.find((e: Election) => e.id === createdElection.id);
         if (newElection) {
-          console.log("Selecting newly created election:", newElection.id);
           setSelectedElection(newElection);
           // Load details with a small delay to ensure candidates are saved
           await new Promise(resolve => setTimeout(resolve, 500));
           await loadElectionDetails(newElection.id);
-        } else {
-          console.error("Could not find newly created election in list");
         }
       }
     } catch (err: any) {
@@ -737,12 +599,10 @@ export default function OrganizerPage() {
         functionName: "addCandidate",
         args: [BigInt(selectedElection.onchain_election_id), candidateName.trim(), imageValue],
       });
-      console.log("✓ Candidate tx sent:", txHash);
 
       // Wait for confirmation
       setToast(`Waiting for candidate "${candidateName}" to be confirmed...`);
       await waitForTransaction(txHash, `addCandidate(${candidateName})`);
-      console.log("✓✓ Candidate CONFIRMED on blockchain!");
 
       setToast("Saving candidate to database...");
       const res = await fetch("/api/candidates", {
@@ -845,7 +705,7 @@ export default function OrganizerPage() {
       setToast(`✅ Results sent to ${data.emailsSent} voters!`);
       
       if (data.emailsFailed > 0) {
-        console.error("Some emails failed:", data.errors);
+        setToast("Some emails failed to send");
       }
     } catch (err: any) {
       setToast(err.message || "Failed to send notifications");

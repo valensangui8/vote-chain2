@@ -97,7 +97,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         });
 
     } catch (error: any) {
-        console.error("Error in results notification:", error);
         return res.status(500).json({
             error: "Internal server error",
             message: error.message

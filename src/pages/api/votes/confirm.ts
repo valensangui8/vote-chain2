@@ -59,7 +59,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         });
 
         if (!result.success) {
-            console.error("Failed to send confirmation email:", result.error);
             return res.status(500).json({
                 error: "Failed to send confirmation email",
                 details: result.error
@@ -72,7 +71,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         });
 
     } catch (error: any) {
-        console.error("Error in vote confirmation:", error);
         return res.status(500).json({
             error: "Internal server error",
             message: error.message

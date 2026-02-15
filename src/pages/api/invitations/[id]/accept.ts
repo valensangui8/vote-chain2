@@ -3,8 +3,6 @@ import { getSupabaseServerClient } from "@/lib/supabase";
 import { z } from "zod";
 
 const acceptSchema = z.object({
-  // NOTE: We intentionally do NOT store commitmentHash in Supabase to preserve voter anonymity.
-  // The commitment is only registered on-chain where it cannot be linked to email/identity.
   privyUserId: z.string().min(1),
 });
 
@@ -23,7 +21,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const { privyUserId } = parsed.data;
 
-  // Get invitation
   const { data: invitation, error: invError } = await supabase
     .from("invitations")
     .select("*, elections(*)")
@@ -38,7 +35,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (invitation.status === "accepted") {
       return res.status(200).json({
         invitation,
-        // Return election on-chain IDs and election_id so frontend can re-register commitment
         election: {
           id: (invitation.elections as any).id,
           onchainElectionId: (invitation.elections as any).onchain_election_id,
@@ -49,15 +45,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(400).json({ error: "Invitation already processed" });
   }
 
-  // Update invitation status
-  // NOTE: We do NOT store commitment_hash to preserve voter anonymity.
-  // The commitment only exists on-chain, unlinkable to email/identity.
   const { data: updated, error: updateError } = await supabase
     .from("invitations")
     .update({
       status: "accepted",
       invitee_privy_user_id: privyUserId,
-      // commitment_hash intentionally NOT stored for anonymity
       accepted_at: new Date().toISOString(),
     })
     .eq("id", id)
@@ -70,7 +62,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   return res.status(200).json({
     invitation: updated,
-    // Return election on-chain IDs and election_id so frontend can add commitment and redirect
     election: {
       id: (invitation.elections as any).id,
       onchainElectionId: (invitation.elections as any).onchain_election_id,

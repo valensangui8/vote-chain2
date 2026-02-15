@@ -17,7 +17,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     try {
-        // 1. Fetch election from database
         const { data: election, error: electionError } = await supabase
             .from("elections")
             .select("*, candidates(*)")
@@ -29,7 +28,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }
 
 
-        // 2. Check access control for private elections
         if (!election.is_public) {
             // For private elections, verify the user is either:
             // a) The organizer
@@ -49,13 +47,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                 .select("id")
                 .eq("privy_user_id", userId)
                 .single();
-
-            console.log("🔍 Access check:", {
-                privyUserId: userId,
-                supabaseUserId: user?.id,
-                electionOwnerId: election.owner_id,
-                userFound: !!user
-            });
 
             if (!user) {
                 return res.status(403).json({
@@ -78,26 +69,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
             const hasParticipated = !!invitation;
 
-
-            console.log("🔍 Access decision:", {
-                isOrganizer,
-                hasParticipated,
-                willAllow: isOrganizer || hasParticipated
-            });
-
             if (!isOrganizer && !hasParticipated) {
-                console.log("❌ BLOCKING ACCESS - Not organizer and not participant");
                 return res.status(403).json({
                     error: "You are not authorized to view the results of this private election. Only participants and the organizer can view results.",
                     isPrivate: true,
                     notParticipant: true
                 });
             }
-
-            console.log("✅ ACCESS GRANTED - Proceeding to fetch results");
         }
 
-        // 3. Fetch results from blockchain
         if (!election.onchain_election_id) {
             return res.status(400).json({ error: "Election not deployed on-chain" });
         }
@@ -156,7 +136,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             isTie: winners.length > 1,
         });
     } catch (err: any) {
-        console.error("Error fetching election results:", err);
         return res.status(500).json({
             error: err.message || "Failed to fetch election results"
         });

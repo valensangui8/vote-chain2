@@ -126,7 +126,6 @@ export async function sendVoteConfirmationEmail({
 
     return { success: true, data: result };
   } catch (error) {
-    console.error('Failed to send vote confirmation email:', error);
     return { success: false, error };
   }
 }

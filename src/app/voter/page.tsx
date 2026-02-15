@@ -43,43 +43,22 @@ export default function VoterPage() {
   const [copiedCommitment, setCopiedCommitment] = useState(false);
   const [reRegisterNeeded, setReRegisterNeeded] = useState<Record<string, boolean>>({});
 
-  // Helper to wait for transaction confirmation
   async function waitForTransaction(txHash: string, description: string = "Transaction") {
-    console.log(`⏳ Waiting for ${description} to confirm...`, txHash.substring(0, 20) + "...");
     const provider = new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_RPC_URL);
-
     let attempts = 0;
-    const maxAttempts = 40; // 40 * 3s = 2 minutes max
+    const maxAttempts = 40;
 
     while (attempts < maxAttempts) {
       try {
         const receipt = await provider.getTransactionReceipt(txHash);
         if (receipt) {
-          if (receipt.status === 1) {
-            console.log(`✓ ${description} confirmed!`, {
-              blockNumber: receipt.blockNumber,
-              gasUsed: receipt.gasUsed.toString(),
-              txHash: txHash,
-            });
-            return receipt;
-          } else {
-            console.error(`❌ ${description} FAILED on blockchain!`, {
-              status: receipt.status,
-              blockNumber: receipt.blockNumber,
-              txHash: txHash,
-            });
-            throw new Error(`${description} transaction failed on blockchain (status: 0). Check Sepolia explorer: https://sepolia.etherscan.io/tx/${txHash}`);
-          }
+          if (receipt.status === 1) return receipt;
+          throw new Error(`${description} transaction failed on blockchain (status: 0). Check Sepolia explorer: https://sepolia.etherscan.io/tx/${txHash}`);
         }
       } catch (err: any) {
-        if (err.message?.includes("transaction failed")) {
-          // Already handled above
-          throw err;
-        }
-        // Transaction not yet mined, continue waiting
+        if (err?.message?.includes("transaction failed")) throw err;
       }
 
-      // Wait 3 seconds before checking again
       await new Promise(resolve => setTimeout(resolve, 3000));
       attempts++;
     }
@@ -107,47 +86,28 @@ export default function VoterPage() {
   }, [invitations]);
 
   useEffect(() => {
-    // Wait for user to be authenticated before creating identity
-    if (!user?.id) {
-      return;
-    }
+    if (!user?.id) return;
 
-    // Load identity from localStorage - unique per Privy user
     const seedKey = `voter_seed_${user.id}`;
     let savedSeed = localStorage.getItem(seedKey);
 
-    // Migration: if old global seed exists and user doesn't have one, migrate it
-    // BUT only for the first user - then delete the old seed so other users get their own
     const oldSeed = localStorage.getItem("voter_seed");
     if (!savedSeed && oldSeed) {
       savedSeed = oldSeed;
       localStorage.setItem(seedKey, savedSeed);
-      localStorage.removeItem("voter_seed"); // Remove old seed so next user gets their own
-      console.log("Migrated voter seed to user-specific key and removed old global seed");
+      localStorage.removeItem("voter_seed");
     }
 
-    // If no seed exists for this user, generate and save one
     if (!savedSeed) {
       savedSeed = Math.random().toString(36).substring(2);
       localStorage.setItem(seedKey, savedSeed);
-      console.log("Generated new voter seed for user:", user.id.substring(0, 15) + "...");
-    } else {
-      console.log("Using existing voter seed for user:", user.id.substring(0, 15) + "...");
     }
 
     try {
       const id = createIdentity(savedSeed);
       setIdentity(id);
-      const value = getCommitment(id).toString();
-      setCommitment(value);
-      console.log("🔑 Voter page - Identity loaded:", {
-        userId: user.id.substring(0, 15) + "...",
-        seed: savedSeed.substring(0, 10) + "...",
-        commitment: value.substring(0, 20) + "...",
-        fullCommitment: value,
-      });
-    } catch (err) {
-      console.error("Failed to create identity:", err);
+      setCommitment(getCommitment(id).toString());
+    } catch {
       setCommitment(null);
       setIdentity(null);
     }
@@ -155,7 +115,6 @@ export default function VoterPage() {
 
   async function loadInvitations() {
     if (!user?.email?.address) {
-      console.log("No email address found in user object", user);
       setLoadingInvitations(false);
       return;
     }
@@ -163,19 +122,11 @@ export default function VoterPage() {
     try {
       setLoadingInvitations(true);
       const email = user.email.address.toLowerCase().trim();
-      console.log("Loading invitations for email:", email);
-
       const res = await fetch(`/api/invitations?email=${encodeURIComponent(email)}`);
       const body = await res.json();
-
-      if (res.ok) {
-        console.log("Loaded invitations:", body.invitations);
-        setInvitations(body.invitations || []);
-      } else {
-        console.error("Failed to load invitations:", body.error);
-      }
-    } catch (err) {
-      console.error("Failed to load invitations", err);
+      if (res.ok) setInvitations(body.invitations || []);
+    } catch {
+      // Ignore load errors
     } finally {
       setLoadingInvitations(false);
     }
@@ -295,12 +246,10 @@ export default function VoterPage() {
           BigInt(commitment),
         ],
       });
-      console.log("✓ addCommitment tx sent:", txHash);
 
       // Wait for confirmation
       setToast("Waiting for blockchain confirmation...");
       await waitForTransaction(txHash, "addCommitment");
-      console.log("✓✓ Commitment CONFIRMED on blockchain!");
 
       // Reload invitations to show the accepted one in the list
       await loadInvitations();

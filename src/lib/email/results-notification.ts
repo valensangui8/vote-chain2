@@ -124,7 +124,6 @@ export async function sendResultsNotificationEmail({
 
         return { success: true, data: result };
     } catch (error) {
-        console.error('Failed to send results notification email:', error);
         return { success: false, error };
     }
 }

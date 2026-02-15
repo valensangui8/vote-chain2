@@ -77,7 +77,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         });
 
     } catch (err: any) {
-        console.error("Batch invite error:", err);
         return res.status(500).json({ error: err.message || "Failed to process batch invitations" });
     }
 }

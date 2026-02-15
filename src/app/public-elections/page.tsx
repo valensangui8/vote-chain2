@@ -34,7 +34,6 @@ export default function PublicElectionsPage() {
         setElections(publicElections);
       }
     } catch (err) {
-      console.error("Error fetching elections:", err);
     } finally {
       setLoading(false);
     }

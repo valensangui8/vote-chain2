@@ -54,7 +54,6 @@ export default function ElectionDetailPage() {
   const [txHashForDisplay, setTxHashForDisplay] = useState<string | null>(null);
   const [showReRegisterAction, setShowReRegisterAction] = useState(false);
 
-  // Check if already voted on mount
   useEffect(() => {
     if (electionId) {
       const voted = localStorage.getItem(`voted_${electionId}`);
@@ -72,47 +71,28 @@ export default function ElectionDetailPage() {
   }, [authenticated, user?.email?.address, electionId]);
 
   useEffect(() => {
-    // Wait for user to be authenticated before creating identity
-    if (!user?.id) {
-      return;
-    }
+    if (!user?.id) return;
 
-    // Load identity from localStorage - unique per Privy user
     const seedKey = `voter_seed_${user.id}`;
     let savedSeed = localStorage.getItem(seedKey);
 
-    // Migration: if old global seed exists and user doesn't have one, migrate it
-    // BUT only for the first user - then delete the old seed so other users get their own
     const oldSeed = localStorage.getItem("voter_seed");
     if (!savedSeed && oldSeed) {
       savedSeed = oldSeed;
       localStorage.setItem(seedKey, savedSeed);
-      localStorage.removeItem("voter_seed"); // Remove old seed so next user gets their own
-      console.log("Migrated voter seed to user-specific key and removed old global seed");
+      localStorage.removeItem("voter_seed");
     }
 
-    // If no seed exists for this user, generate and save one
     if (!savedSeed) {
       savedSeed = Math.random().toString(36).substring(2);
       localStorage.setItem(seedKey, savedSeed);
-      console.log("Generated new voter seed for user:", user.id.substring(0, 15) + "...");
-    } else {
-      console.log("Using existing voter seed for user:", user.id.substring(0, 15) + "...");
     }
 
     try {
       const id = createIdentity(savedSeed);
       setIdentity(id);
-      const value = getCommitment(id).toString();
-      setCommitment(value);
-      console.log("🔑 Election page - Identity loaded:", {
-        userId: user.id.substring(0, 15) + "...",
-        seed: savedSeed.substring(0, 10) + "...",
-        commitment: value.substring(0, 20) + "...",
-        fullCommitment: value,
-      });
-    } catch (err) {
-      console.error("Failed to create identity:", err);
+      setCommitment(getCommitment(id).toString());
+    } catch {
       setCommitment(null);
       setIdentity(null);
     }
@@ -133,8 +113,8 @@ export default function ElectionDetailPage() {
       if (candRes.ok) {
         setCandidates(candBody.candidates || []);
       }
-    } catch (err) {
-      console.error("Failed to load data", err);
+    } catch {
+      // Ignore load errors
     }
   }
 
@@ -232,9 +212,6 @@ export default function ElectionDetailPage() {
           toBlock: "latest",
         });
 
-        console.log(`📊 Found ${logs.length} MemberAdded events for group ${groupId.toString()} (attempt ${retryCount + 1}/${maxRetries})`);
-        
-        // Check if our commitment is in the logs
         const myCommitmentBigInt = getCommitment(identity);
         const foundInLogs = logs.some((log) => {
           try {
@@ -249,21 +226,14 @@ export default function ElectionDetailPage() {
         });
 
         if (foundInLogs || logs.length > 0) {
-          // If we found our commitment or there are logs, break
-          if (foundInLogs) {
-            console.log("✓ Found our commitment in on-chain events!");
-            break;
-          }
-          // If there are logs but not ours yet, and it's not the first retry, wait a bit
+          if (foundInLogs) break;
           if (retryCount > 0) {
             break;
           }
         }
 
-        // Wait before retrying (exponential backoff: 2s, 4s, 6s, 8s, 10s)
         if (retryCount < maxRetries - 1) {
           const waitTime = (retryCount + 1) * 2000;
-          console.log(`⏳ Waiting ${waitTime}ms for events to be indexed...`);
           setProofStatus(`Waiting for blockchain events to be indexed... (${retryCount + 1}/${maxRetries})`);
           await new Promise(resolve => setTimeout(resolve, waitTime));
         }
@@ -271,7 +241,6 @@ export default function ElectionDetailPage() {
         retryCount++;
       }
 
-      // Parse events and extract commitments in order
       const commitments: bigint[] = logs
         .map((log) => {
           const parsed = semaphoreInterface.parseLog({
@@ -283,28 +252,19 @@ export default function ElectionDetailPage() {
             commitment: BigInt(parsed?.args[2]),
           };
         })
-        .sort((a, b) => a.index - b.index) // Sort by index to ensure correct order
+        .sort((a, b) => a.index - b.index)
         .map((item) => item.commitment);
 
       if (!commitments.length) {
         throw new Error("No members found on-chain for this election group. Please accept the invitation first.");
       }
 
-      console.log("📊 On-chain commitments:", commitments.map(c => c.toString().substring(0, 20) + "..."));
-
       const depth = 20;
       const group = createGroupFromCommitments(commitments, depth);
       const externalNullifier = BigInt(election.external_nullifier);
 
-      // Verify our commitment is in the group
       const myCommitment = getCommitment(identity).toString();
       const isInGroup = commitments.some((c: bigint) => c.toString() === myCommitment);
-
-      console.log("✓ Commitment verification:", {
-        myCommitment: myCommitment.substring(0, 20) + "...",
-        groupSize: commitments.length,
-        isInGroup,
-      });
 
       if (!isInGroup) {
         throw new Error(
@@ -313,7 +273,6 @@ export default function ElectionDetailPage() {
         );
       }
 
-      // Use candidate index (1-based) as signal
       const candidateIndex = candidates.findIndex((c) => c.id === selectedCandidate.id) + 1;
       const signalBig = BigInt(candidateIndex);
 
@@ -325,40 +284,15 @@ export default function ElectionDetailPage() {
         externalNullifier,
       });
 
-      console.log("✓ Proof received:", {
-        nullifier: fullProof.nullifier.toString(),
-        merkleTreeRoot: fullProof.merkleTreeRoot.toString(),
-        merkleTreeDepth: fullProof.merkleTreeDepth,
-        message: fullProof.message.toString(),
-        scope: fullProof.scope.toString(),
-        pointsLength: fullProof.points.length,
-      });
-
-      // Build the SemaphoreProof struct for Semaphore v4
-      // SemaphoreProof = (merkleTreeDepth, merkleTreeRoot, nullifier, message, scope, points[8])
       const semaphoreProof = {
         merkleTreeDepth: BigInt(fullProof.merkleTreeDepth),
         merkleTreeRoot: BigInt(fullProof.merkleTreeRoot),
         nullifier: BigInt(fullProof.nullifier),
-        message: signalBig, // message = candidateId
-        scope: externalNullifier, // scope = election's external nullifier
+        message: signalBig,
+        scope: externalNullifier,
         points: fullProof.points.map((p: string | bigint) => BigInt(p)) as [bigint, bigint, bigint, bigint, bigint, bigint, bigint, bigint],
       };
 
-      console.log("Submitting vote with Semaphore v4 proof:", {
-        electionId: election.onchain_election_id,
-        candidateId: signalBig.toString(),
-        proof: {
-          merkleTreeDepth: semaphoreProof.merkleTreeDepth.toString(),
-          merkleTreeRoot: semaphoreProof.merkleTreeRoot.toString().substring(0, 20) + "...",
-          nullifier: semaphoreProof.nullifier.toString().substring(0, 20) + "...",
-          message: semaphoreProof.message.toString(),
-          scope: semaphoreProof.scope.toString(),
-          pointsLength: semaphoreProof.points.length,
-        },
-      });
-
-      // Semaphore v4 castVote uses a struct/tuple for the proof
       const votingAbi = parseAbi([
         "function castVote(uint256 electionId, uint256 candidateId, (uint256 merkleTreeDepth, uint256 merkleTreeRoot, uint256 nullifier, uint256 message, uint256 scope, uint256[8] points) proof)",
       ]);
@@ -371,7 +305,7 @@ export default function ElectionDetailPage() {
         functionName: "castVote",
         args: [
           BigInt(election.onchain_election_id),
-          signalBig, // candidateId (1-based index)
+          signalBig,
           semaphoreProof,
         ],
       });
@@ -381,12 +315,9 @@ export default function ElectionDetailPage() {
       setHasVoted(true);
       setShowReRegisterAction(false);
 
-      // Save to localStorage for persistence
       localStorage.setItem(`voted_${election.id}`, "true");
 
-      // Send vote confirmation email
       try {
-        console.log("📧 Attempting to send vote confirmation email to:", user?.email?.address);
         const emailRes = await fetch("/api/votes/confirm", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -395,65 +326,25 @@ export default function ElectionDetailPage() {
             voterEmail: user?.email?.address || "",
           }),
         });
-
-        console.log("📧 Email API response status:", emailRes.status);
-        
-        if (emailRes.ok) {
-          console.log("✅ Email sent successfully!");
-        } else {
-          const errorData = await emailRes.json();
-          console.error("❌ Email API error:", errorData);
-        }
-      } catch (emailErr) {
-        console.error("❌ Email sending failed:", emailErr);
-        // Don't fail the vote if email fails
+      } catch {
+        // Email failure should not affect vote
       }
 
-      // Save vote to Supabase for tracking
       try {
-        // Note: We only log non-identifying information
-        console.log("💾 Saving vote to Supabase:", {
-          electionId: election.id,
-          nullifier: semaphoreProof.nullifier.toString().substring(0, 20) + "...",
-          message: semaphoreProof.message.toString(),
-          txHash: txHash.substring(0, 20) + "...",
-          // privyUserId intentionally not logged to preserve anonymity
-        });
-
-        // IMPORTANT: Do NOT send voterPrivyUserId or txHash to preserve voter anonymity
-        // The nullifier is sufficient to prevent double voting
-        // txHash is shown on-screen once but not stored to prevent linkage via Privy+Supabase
         const saveRes = await fetch("/api/votes", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            electionId: election.id, // Supabase election UUID
+            electionId: election.id,
             nullifierHash: semaphoreProof.nullifier.toString(),
             signal: semaphoreProof.message.toString(),
-            // voterPrivyUserId intentionally omitted to preserve anonymity
-            // txHash intentionally omitted to prevent Privy↔Supabase linkage
           }),
         });
-
-        const saveBody = await saveRes.json();
-        if (!saveRes.ok) {
-          console.error("❌ Failed to save vote to Supabase:", saveBody);
-        } else {
-          console.log("✓ Vote saved to Supabase successfully");
-        }
-      } catch (saveErr) {
-        console.error("Failed to save vote to Supabase:", saveErr);
+        if (!saveRes.ok) await saveRes.json();
+      } catch {
+        // Vote already on-chain; Supabase sync is secondary
       }
     } catch (err: any) {
-      console.error("❌ Vote submission error:", err);
-      console.error("Error details:", {
-        message: err?.message,
-        reason: err?.reason,
-        code: err?.code,
-        data: err?.data,
-      });
-
-      // Check if it's a duplicate vote error
       const errorMessage = err?.message?.toLowerCase() || "";
       const errorReason = err?.reason?.toLowerCase() || "";
       const errorData = JSON.stringify(err?.data || "").toLowerCase();
@@ -473,7 +364,6 @@ export default function ElectionDetailPage() {
         errorReason.includes("already used") ||
         errorData.includes("nullifieralreadyused")
       ) {
-        console.log("🚫 Duplicate vote detected!");
         setProofStatus("You have already voted in this election!");
         setHasVoted(true);
       } else {
